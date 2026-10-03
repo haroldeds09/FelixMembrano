@@ -1,0 +1,2662 @@
+local Players = game:GetService("Players")
+
+local function coloredToggleText(name, state)
+	local suffix = state and '<font color="#33DD66">[ON]</font>' or '<font color="#FF4444">[OFF]</font>'
+	return name .. " " .. suffix
+end
+
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CoreGui = game:GetService("CoreGui")
+
+local player = Players.LocalPlayer
+local PlayerGui = player:WaitForChild("PlayerGui")
+
+-- ──────────────────────────────────────────────────
+-- Duplicado
+-- ──────────────────────────────────────────────────
+if PlayerGui:FindFirstChild("L3velSniperGui") then
+	local vonGui = Instance.new("ScreenGui")
+	vonGui.Name = "L3velSniperAlreadyRunning"
+	vonGui.ResetOnSpawn = false
+	vonGui.IgnoreGuiInset = true
+	vonGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	vonGui.Parent = PlayerGui
+
+	local bg2Color = Color3.fromRGB(22, 32, 50)
+	local accentColor = Color3.fromRGB(60, 130, 230)
+	local accentSecColor = Color3.fromRGB(120, 180, 255)
+	local textPriColor = Color3.fromRGB(220, 235, 255)
+
+	local badgeFrame = Instance.new("Frame")
+	badgeFrame.Size = UDim2.new(0, 260, 0, 60)
+	badgeFrame.Position = UDim2.new(1, 20, 1, -160)
+	badgeFrame.BackgroundColor3 = Color3.fromRGB(10, 14, 22)
+	badgeFrame.BackgroundTransparency = 0.05
+	badgeFrame.Parent = vonGui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = badgeFrame
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = accentColor
+	stroke.Thickness = 1.5
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = badgeFrame
+
+	local iconFrame = Instance.new("Frame")
+	iconFrame.Size = UDim2.new(0, 42, 0, 42)
+	iconFrame.Position = UDim2.new(0, 9, 0.5, -21)
+	iconFrame.BackgroundColor3 = bg2Color
+	iconFrame.Parent = badgeFrame
+
+	local iconCorner = Instance.new("UICorner")
+	iconCorner.CornerRadius = UDim.new(0, 8)
+	iconCorner.Parent = iconFrame
+
+	local iconLabel = Instance.new("TextLabel")
+	iconLabel.Size = UDim2.new(1, 0, 1, 0)
+	iconLabel.BackgroundTransparency = 1
+	iconLabel.Font = Enum.Font.GothamBold
+	iconLabel.TextSize = 22
+	iconLabel.TextColor3 = accentSecColor
+	iconLabel.Text = "🚫"
+	iconLabel.Parent = iconFrame
+
+	local badgeTitle = Instance.new("TextLabel")
+	badgeTitle.Size = UDim2.new(1, -62, 0, 16)
+	badgeTitle.Position = UDim2.new(0, 58, 0, 10)
+	badgeTitle.BackgroundTransparency = 1
+	badgeTitle.Font = Enum.Font.GothamBlack
+	badgeTitle.TextSize = 11
+	badgeTitle.TextColor3 = accentSecColor
+	badgeTitle.TextXAlignment = Enum.TextXAlignment.Left
+	badgeTitle.Text = "Error"
+	badgeTitle.Parent = badgeFrame
+
+	local badgeDesc = Instance.new("TextLabel")
+	badgeDesc.Size = UDim2.new(1, -64, 0, 26)
+	badgeDesc.Position = UDim2.new(0, 58, 0, 24)
+	badgeDesc.BackgroundTransparency = 1
+	badgeDesc.Font = Enum.Font.GothamBold
+	badgeDesc.TextSize = 11
+	badgeDesc.TextColor3 = textPriColor
+	badgeDesc.TextXAlignment = Enum.TextXAlignment.Left
+	badgeDesc.TextWrapped = true
+	badgeDesc.Text = "Already executed"
+	badgeDesc.Parent = badgeFrame
+
+	task.spawn(function()
+		TweenService:Create(badgeFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+			Position = UDim2.new(1, -270, 1, -160)
+		}):Play()
+		task.wait(2)
+		local tweenOut = TweenService:Create(badgeFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+			Position = UDim2.new(1, 20, 1, -160)
+		})
+		tweenOut:Play()
+		tweenOut.Completed:Connect(function()
+			vonGui:Destroy()
+		end)
+	end)
+	return
+end
+
+-- Instanciación principal de la GUI
+local vonGui = Instance.new("ScreenGui")
+vonGui.Name = "L3velSniperGui"
+vonGui.ResetOnSpawn = false
+vonGui.IgnoreGuiInset = true
+vonGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+vonGui.Parent = PlayerGui
+
+-- ──────────────────────────────────────────────────
+-- Configuración
+-- ──────────────────────────────────────────────────
+local CFG_PATH = "l3vel_sniper_config.json"
+local cfg = {
+	captureCount = 3,
+	posX = nil,
+	posY = nil,
+	minimized = false,
+	activeTab = 1,
+	executionCount = 0,
+}
+
+local function saveConfig()
+	if not writefile then return end
+	pcall(writefile, CFG_PATH, HttpService:JSONEncode(cfg))
+end
+
+local function loadConfig()
+	if not (readfile and isfile and isfile(CFG_PATH)) then return end
+	local ok, dec = pcall(function() return HttpService:JSONDecode(readfile(CFG_PATH)) end)
+	if ok and type(dec) == "table" then
+		for k, v in pairs(dec) do cfg[k] = v end
+	end
+end
+
+loadConfig()
+cfg.executionCount = (cfg.executionCount or 0) + 1
+saveConfig()
+
+-- ──────────────────────────────────────────────────
+-- Utilidades
+-- ──────────────────────────────────────────────────
+local C = {
+	bg0 = Color3.fromRGB(10, 14, 22),
+	bg1 = Color3.fromRGB(15, 22, 34),
+	bg2 = Color3.fromRGB(22, 32, 50),
+	bg3 = Color3.fromRGB(18, 26, 40),
+	pressed = Color3.fromRGB(10, 16, 26),
+	border = Color3.fromRGB(45, 90, 160),
+	accent = Color3.fromRGB(60, 130, 230),
+	accentSec = Color3.fromRGB(120, 180, 255),
+	activeTabText = Color3.fromRGB(240, 248, 255),
+	statusRed = Color3.fromRGB(230, 50, 50),
+	statusGreen = Color3.fromRGB(50, 205, 50),
+	textPri = Color3.fromRGB(220, 235, 255),
+	textMuted = Color3.fromRGB(110, 135, 170),
+	inputBg = Color3.fromRGB(12, 18, 28),
+	tweenFast = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+	tweenMed = TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+}
+
+local function corner(p, r)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = r or UDim.new(0, 8)
+	c.Parent = p
+end
+
+local function stroke(p, color, thickness)
+	local s = Instance.new("UIStroke")
+	s.Color = color or C.border
+	s.Thickness = thickness or 1.2
+	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	s.Parent = p
+end
+
+local function addPressEffect(btn, targetFrame, getNormalColor)
+	targetFrame = targetFrame or btn
+	btn.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			TweenService:Create(targetFrame, C.tweenFast, {BackgroundColor3 = C.pressed}):Play()
+		end
+	end)
+	btn.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			local normColor = (type(getNormalColor) == "function" and getNormalColor()) or getNormalColor or C.bg2
+			TweenService:Create(targetFrame, C.tweenFast, {BackgroundColor3 = normColor}):Play()
+		end
+	end)
+end
+
+local function fireConnections(signal, ...)
+	if typeof(firesignal) == "function" then
+		pcall(firesignal, signal, ...)
+		return true
+	end
+	if typeof(getconnections) ~= "function" then return false end
+	local ok, connections = pcall(getconnections, signal)
+	if not ok or type(connections) ~= "table" then return false end
+	local args = table.pack(...)
+	local fired = false
+	for _, connection in ipairs(connections) do
+		local fireOk = pcall(function()
+			if connection.Enabled ~= false then
+				if args.n > 0 then
+					connection:Fire(table.unpack(args, 1, args.n))
+				else
+					connection:Fire(true)
+				end
+			end
+		end)
+		fired = fired or fireOk
+	end
+	return fired
+end
+
+-- ──────────────────────────────────────────────────
+-- Introducción
+-- ──────────────────────────────────────────────────
+local function playIntro()
+	local introGui = Instance.new("ScreenGui")
+	introGui.Name = "L3velIntroGui"
+	introGui.ResetOnSpawn = false
+	introGui.IgnoreGuiInset = true
+	introGui.DisplayOrder = 99999
+	introGui.Parent = PlayerGui
+
+	local bgFrame = Instance.new("Frame")
+	bgFrame.Size = UDim2.new(1, 0, 1, 0)
+	bgFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	bgFrame.BackgroundTransparency = 1
+	bgFrame.BorderSizePixel = 0
+	bgFrame.Parent = introGui
+
+	local logoImg = Instance.new("ImageLabel")
+	logoImg.Size = UDim2.new(0, 160, 0, 160)
+	logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
+	logoImg.Position = UDim2.new(0.5, 0, 0.42, 0)
+	logoImg.BackgroundTransparency = 1
+	logoImg.Image = "rbxassetid://86089917311310"
+	logoImg.ImageTransparency = 1
+	logoImg.Parent = bgFrame
+
+	local loadLabel = Instance.new("TextLabel")
+	loadLabel.Size = UDim2.new(0, 500, 0, 30)
+	loadLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+	loadLabel.Position = UDim2.new(0.5, 0, 0.42, 110)
+	loadLabel.BackgroundTransparency = 1
+	loadLabel.Font = Enum.Font.GothamBold
+	loadLabel.TextSize = 22
+	loadLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	loadLabel.TextTransparency = 1
+	loadLabel.Text = "Level Is Loading..."
+	loadLabel.Parent = bgFrame
+
+	local barBg = Instance.new("Frame")
+	barBg.Size = UDim2.new(0, 700, 0, 16)
+	barBg.AnchorPoint = Vector2.new(0.5, 0.5)
+	barBg.Position = UDim2.new(0.5, 0, 0.42, 150)
+	barBg.BackgroundColor3 = C.bg2
+	barBg.BackgroundTransparency = 1
+	barBg.BorderSizePixel = 0
+	barBg.Parent = bgFrame
+	corner(barBg, UDim.new(0, 8))
+
+	local barFill = Instance.new("Frame")
+	barFill.Size = UDim2.new(0, 0, 1, 0)
+	barFill.BackgroundColor3 = C.accent
+	barFill.BackgroundTransparency = 1
+	barFill.BorderSizePixel = 0
+	barFill.Parent = barBg
+	corner(barFill, UDim.new(0, 8))
+
+	local skipBtn = nil
+	if cfg.executionCount > 1 then
+		skipBtn = Instance.new("TextButton")
+		skipBtn.Size = UDim2.new(0, 110, 0, 32)
+		skipBtn.Position = UDim2.new(1, -130, 1, -50)
+		skipBtn.BackgroundColor3 = C.bg0
+		skipBtn.BackgroundTransparency = 1
+		skipBtn.Font = Enum.Font.GothamBlack
+		skipBtn.TextSize = 13
+		skipBtn.TextColor3 = C.accentSec
+		skipBtn.TextTransparency = 1
+		skipBtn.Text = "Skip Intro"
+		skipBtn.Parent = bgFrame
+		corner(skipBtn, UDim.new(0, 6))
+		stroke(skipBtn, C.border, 1)
+	end
+
+	local tweenInfoIn = TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	TweenService:Create(bgFrame, tweenInfoIn, {BackgroundTransparency = 0}):Play()
+	TweenService:Create(logoImg, tweenInfoIn, {ImageTransparency = 0}):Play()
+	TweenService:Create(loadLabel, tweenInfoIn, {TextTransparency = 0}):Play()
+	TweenService:Create(barBg, tweenInfoIn, {BackgroundTransparency = 0}):Play()
+	TweenService:Create(barFill, tweenInfoIn, {BackgroundTransparency = 0}):Play()
+	if skipBtn then
+		TweenService:Create(skipBtn, tweenInfoIn, {BackgroundTransparency = 0.1, TextTransparency = 0}):Play()
+	end
+
+	local isSkipped = false
+	local dotsThread = task.spawn(function()
+		local count = 0
+		while not isSkipped and introGui.Parent do
+			count = (count + 1) % 4
+			local dots = string.rep(".", count)
+			loadLabel.Text = "Level Is Loading" .. dots
+			task.wait(0.2)
+		end
+	end)
+
+	if skipBtn then
+		skipBtn.MouseButton1Click:Connect(function()
+			isSkipped = true
+		end)
+	end
+
+	local loadTween = TweenService:Create(barFill, TweenInfo.new(3.0, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {Size = UDim2.new(1, 0, 1, 0)})
+	loadTween:Play()
+
+	local startTime = tick()
+	while (tick() - startTime < 3.0) and not isSkipped do
+		task.wait(0.02)
+	end
+	isSkipped = true
+	task.cancel(dotsThread)
+
+	local tweenInfoOut = TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	local fadeOutTween = TweenService:Create(bgFrame, tweenInfoOut, {BackgroundTransparency = 1})
+	TweenService:Create(logoImg, tweenInfoOut, {ImageTransparency = 1}):Play()
+	TweenService:Create(loadLabel, tweenInfoOut, {TextTransparency = 1}):Play()
+	TweenService:Create(barBg, tweenInfoOut, {BackgroundTransparency = 1}):Play()
+	TweenService:Create(barFill, tweenInfoOut, {BackgroundTransparency = 1}):Play()
+	if skipBtn then
+		TweenService:Create(skipBtn, tweenInfoOut, {BackgroundTransparency = 1, TextTransparency = 1}):Play()
+	end
+	fadeOutTween:Play()
+	fadeOutTween.Completed:Wait()
+	introGui:Destroy()
+end
+
+playIntro()
+
+-- ──────────────────────────────────────────────────
+-- Lógica principal
+-- ──────────────────────────────────────────────────
+local function showBadgeNotification()
+	local badgeFrame = Instance.new("Frame")
+	badgeFrame.Size = UDim2.new(0, 260, 0, 60)
+	badgeFrame.Position = UDim2.new(1, 20, 1, -160)
+	badgeFrame.BackgroundColor3 = C.bg0
+	badgeFrame.BackgroundTransparency = 0.05
+	badgeFrame.Parent = vonGui
+	corner(badgeFrame, UDim.new(0, 8))
+	stroke(badgeFrame, C.accent, 1.5)
+
+	local iconFrame = Instance.new("Frame")
+	iconFrame.Size = UDim2.new(0, 42, 0, 42)
+	iconFrame.Position = UDim2.new(0, 9, 0.5, -21)
+	iconFrame.BackgroundColor3 = C.bg2
+	iconFrame.Parent = badgeFrame
+	corner(iconFrame, UDim.new(0, 8))
+
+	local iconLabel = Instance.new("TextLabel")
+	iconLabel.Size = UDim2.new(1, 0, 1, 0)
+	iconLabel.BackgroundTransparency = 1
+	iconLabel.Font = Enum.Font.GothamBold
+	iconLabel.TextSize = 22
+	iconLabel.Text = "📁"
+	iconLabel.Parent = iconFrame
+
+	local badgeTitle = Instance.new("TextLabel")
+	badgeTitle.Size = UDim2.new(1, -62, 0, 16)
+	badgeTitle.Position = UDim2.new(0, 58, 0, 10)
+	badgeTitle.BackgroundTransparency = 1
+	badgeTitle.Font = Enum.Font.GothamBlack
+	badgeTitle.TextSize = 11
+	badgeTitle.TextColor3 = C.accentSec
+	badgeTitle.TextXAlignment = Enum.TextXAlignment.Left
+	badgeTitle.Text = "L3vel Alert"
+	badgeTitle.Parent = badgeFrame
+
+	local badgeDesc = Instance.new("TextLabel")
+	badgeDesc.Size = UDim2.new(1, -64, 0, 26)
+	badgeDesc.Position = UDim2.new(0, 58, 0, 24)
+	badgeDesc.BackgroundTransparency = 1
+	badgeDesc.Font = Enum.Font.GothamBold
+	badgeDesc.TextSize = 11
+	badgeDesc.TextColor3 = C.textPri
+	badgeDesc.TextXAlignment = Enum.TextXAlignment.Left
+	badgeDesc.TextWrapped = true
+	badgeDesc.Text = "L3vel Sniper Successfully executed"
+	badgeDesc.Parent = badgeFrame
+
+	task.spawn(function()
+		TweenService:Create(badgeFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+			Position = UDim2.new(1, -270, 1, -160)
+		}):Play()
+		task.wait(2)
+		local tweenOut = TweenService:Create(badgeFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+			Position = UDim2.new(1, 20, 1, -160)
+		})
+		tweenOut:Play()
+		tweenOut.Completed:Connect(function()
+			badgeFrame:Destroy()
+		end)
+	end)
+end
+
+showBadgeNotification()
+
+-- Estados iniciales
+local isScanning = false
+local combineEnabled = false
+local autoRiddleEnabled = false
+local autoStartEnabled = false
+local isLocked = true
+local captureCount = cfg.captureCount or 3
+local collectBuf = {}
+local collectProgress = 0
+local lastCollectedText = ""
+local lastDetectedCodeFragment = ""
+local lastSubmitAmount = 1
+local suppressDispatchUntil = 0
+local statusLog = {}
+local startBtn = nil
+local autoStartBtn = nil
+local statusDot = nil
+local statusScrollRef = nil
+local activeDynamicLabel = nil
+
+local function clearLogUI()
+	statusLog = {}
+	activeDynamicLabel = nil
+	if statusScrollRef then
+		for _, child in ipairs(statusScrollRef:GetChildren()) do
+			if child:IsA("TextLabel") then
+				child:Destroy()
+			end
+		end
+	end
+end
+
+local function logStatus(msg, isUpdate)
+	local t = os.date and os.date("%H:%M:%S") or "??"
+	local entry = "[" .. t .. "] " .. msg
+	print("[LOG] " .. entry)
+	
+	if statusScrollRef then
+		if isUpdate and activeDynamicLabel and activeDynamicLabel.Parent then
+			activeDynamicLabel.Text = entry
+		else
+			local lbl = Instance.new("TextLabel")
+			lbl.Size = UDim2.new(1, -8, 0, 0)
+			lbl.AutomaticSize = Enum.AutomaticSize.Y
+			lbl.BackgroundTransparency = 1
+			lbl.Font = Enum.Font.Code
+			lbl.TextSize = 10
+			lbl.TextColor3 = C.textPri
+			lbl.TextXAlignment = Enum.TextXAlignment.Left
+			lbl.TextWrapped = true
+			lbl.Text = entry
+			lbl.Parent = statusScrollRef
+			
+			if isUpdate then
+				activeDynamicLabel = lbl
+			end
+		end
+		
+		task.defer(function()
+			statusScrollRef.CanvasPosition = Vector2.new(0, math.huge)
+		end)
+	end
+end
+
+local seen = {}
+local function isOwnedByUs(obj)
+	local cur = obj
+	while cur and cur ~= game do
+		if cur == vonGui then return true end
+		cur = cur.Parent
+	end
+	return false
+end
+
+local function getText(obj)
+	if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+		return obj.Text
+	end
+	return nil
+end
+
+local function redeemCode(notif)
+	pcall(function()
+		local CodesRoot = PlayerGui:WaitForChild("Codes", 3)
+		local Codes = CodesRoot and CodesRoot:FindFirstChild("Codes")
+		if not Codes then return end
+
+		local codeRedeem = Codes:FindFirstChild("CodeRedeem")
+		local textBox = codeRedeem and codeRedeem:FindFirstChild("TextBox")
+		local confirmButton = Codes:FindFirstChild("Confirm")
+		if not textBox or not confirmButton then return end
+
+		local button = confirmButton:FindFirstChildWhichIsA("TextButton", true)
+			or (confirmButton:IsA("GuiButton") and confirmButton or nil)
+		if not button then return end
+
+		local code = tostring(notif or ""):gsub("<[^>]+>", "")
+		if code == "" then return end
+
+		-- 25 pulsaciones extremadamente rápidas.
+		for _ = 1, 25 do
+			if not button.Parent then break end
+			textBox.Text = code
+			local activated = pcall(function() button:Activate() end)
+			if not activated then
+				fireConnections(button.MouseButton1Click)
+				fireConnections(button.Activated)
+			end
+			task.wait()
+		end
+	end)
+end
+
+local localExactAnswer
+local function isRiddleText(txt)
+	if not txt or txt == "" then return false end
+	if txt:find("%?") then return true end
+	if localExactAnswer and localExactAnswer(txt) then return true end
+	return false
+end
+
+local function getCodeTotalParts(txt)
+	if not txt or txt == "" then return 1 end
+	local clean = txt:gsub("<[^>]+>", "")
+	local parts = {}
+	for word in clean:gmatch("%S+") do
+		table.insert(parts, word)
+	end
+	return #parts > 0 and #parts or 1
+end
+
+local pendingCodePrefix = false
+local pendingCodePrefixTime = 0
+
+-- Auto Start también entiende anuncios dictados por partes:
+-- "USE" -> "THIS CODE" -> "FREEPORKS27"
+-- o "CODE..." / "CODE:" antes del código.
+local pendingSpokenCodePrefix = false
+local pendingSpokenCodePrefixTime = 0
+
+local function cleanDetectedCode(code)
+	code = tostring(code or "")
+	code = code:gsub("<[^>]+>", "")
+	code = code:gsub("^[%s%p]+", ""):gsub("[%s%p]+$", "")
+	return code
+end
+
+local function extractCodeAnnouncement(text)
+	if not text or text == "" then return nil end
+	local clean = tostring(text):gsub("<[^>]+>", "")
+	clean = clean:gsub("^%s+", ""):gsub("%s+$", "")
+	local lower = clean:lower()
+
+	-- "use code" puede llegar solo o con el código al lado.
+	-- "use code for ..." NO contiene un código: "for" es parte de la frase.
+	local useA, useB = lower:find("use%s+code")
+	if useA then
+		local after = clean:sub(useB + 1)
+		after = after:gsub("^%s+", ""):gsub("^[:%-–—]+%s*", "")
+		after = after:gsub("[%s%.!%?…]+$", "")
+		after = after:gsub("^%s+", ""):gsub("%s+$", "")
+
+		local afterLower = after:lower()
+		if afterLower == "" then
+			pendingCodePrefix = true
+			pendingCodePrefixTime = tick()
+			return nil
+		end
+
+		-- Nunca canjear "for", "for a meowl", etc.
+		if afterLower:match("^for%s") or afterLower == "for" then
+			pendingCodePrefix = false
+			return nil
+		end
+
+		-- Cuando el código está directamente al lado: "use code FREEPORKS27".
+		-- Aceptamos un solo token alfanumérico/guiones/underscores, no una frase.
+		local directCode = after:match("^([%w_%-]+)$")
+		if directCode and directCode ~= "" then
+			pendingCodePrefix = false
+			return cleanDetectedCode(directCode)
+		end
+
+		pendingCodePrefix = false
+		return nil
+	end
+
+	-- "The code is" / "code is" puede traer el código en el mismo anuncio.
+	local patterns = {
+		"the%s+code%s+is",
+		"code%s+is"
+	}
+
+	for _, pattern in ipairs(patterns) do
+		local a, b = lower:find(pattern)
+		if a then
+			local after = clean:sub(b + 1)
+			after = after:gsub("^%s+", ""):gsub("^[:%-–—]+%s*", "")
+			after = after:gsub("[%s%.!%?…]+$", "")
+			after = after:gsub("^%s+", ""):gsub("%s+$", "")
+
+			local normalizedAfter = after:lower():gsub("[%p%s…]+", "")
+			local fakeOnly = {
+				[""] = true,
+				["code"] = true,
+				["usecode"] = true,
+				["thecodeis"] = true
+			}
+
+			if normalizedAfter ~= "" and not fakeOnly[normalizedAfter] then
+				local code = cleanDetectedCode(after)
+				if code ~= "" then
+					pendingCodePrefix = false
+					return code
+				end
+			end
+
+			pendingCodePrefix = true
+			pendingCodePrefixTime = tick()
+			return nil
+		end
+	end
+
+	-- Formato: "drgoni256 is The code"
+	local codeBefore = clean:match('^["“”]?([^"“”]+)["“”]?%s+[Ii][Ss]%s+[Tt][Hh][Ee]%s+[Cc][Oo][Dd][Ee]%s*[%.!%?…]*$')
+	if codeBefore then
+		codeBefore = cleanDetectedCode(codeBefore)
+		if codeBefore ~= "" then
+			pendingCodePrefix = false
+			return codeBefore
+		end
+	end
+
+	-- Si "The code is" llegó separado, el siguiente anuncio es el código.
+	if pendingCodePrefix and tick() - pendingCodePrefixTime <= 2 then
+		pendingCodePrefix = false
+		local nextCode = cleanDetectedCode(clean)
+		local nextNorm = nextCode:lower():gsub("[%p%s…]+", "")
+		if nextCode ~= "" and nextNorm ~= "code" and nextNorm ~= "usecode" and nextNorm ~= "thecodeis" and nextNorm ~= "for" then
+			return nextCode
+		end
+	end
+
+	pendingCodePrefix = false
+	return nil
+end
+
+local function stopStartAfterSubmit()
+	isScanning = false
+	collectBuf = {}
+	collectProgress = 0
+	lastCollectedText = ""
+	lastDetectedCodeFragment = ""
+	if startBtn then
+		startBtn.Text = coloredToggleText("Start", false)
+	end
+	if statusDot then
+		statusDot.BackgroundColor3 = C.statusRed
+	end
+end
+
+local function finishSubmit()
+	-- Submit solo detiene el ciclo actual de Start.
+	-- Auto Start es una configuración independiente y permanece ON.
+	stopStartAfterSubmit()
+end
+
+local function dispatch(text)
+	if not text or text == "" then return end
+	if tick() < suppressDispatchUntil then return end
+
+	local cleanText = tostring(text):gsub("<[^>]+>", "")
+	local lowerText = cleanText:lower()
+	local trimmedText = cleanText:gsub("^%s+", ""):gsub("%s+$", "")
+	local trimmedLower = trimmedText:lower()
+
+	-- Auto Start reconoce anuncios de código DICTADOS/PARTIDOS.
+	-- No dependemos de una frase exacta: mantenemos una pequeña ventana
+	-- de contexto para entender frases como:
+	-- USE -> THE CODE FOR -> USE THIS CODE -> USE THIS -> FREEPORKS27
+	-- USE THIS CODE -> CODE... -> FREEPORKS27
+	local spokenCodeLead = false
+	local spokenLeadOnly = false
+	local spokenResolvedCode = nil
+
+	local function normalizeSpokenLead(txt)
+		local t = tostring(txt or ""):gsub("<[^>]+>", "")
+		t = t:gsub("^%s+", ""):gsub("%s+$", ""):lower()
+		-- La puntuación final es ruido de voz/transcripción.
+		t = t:gsub("[%s%.%!%?…:;%-]+$", "")
+		t = t:gsub("%s+", " ")
+		return t
+	end
+
+	local function isSpokenCodeLead(txt)
+		local t = normalizeSpokenLead(txt)
+		return
+			t == "use"
+			or t == "use this"
+			or t == "this code"
+			or t == "use this code"
+			or t == "code"
+			or t == "code for"
+			or t == "use code"
+			or t == "use code for"
+			or t == "the code"
+			or t == "the code for"
+			or t == "use the code"
+			or t == "use the code for"
+	end
+
+	-- También aceptamos frases que claramente terminan en un marcador
+	-- de código, aunque tengan palabras intermedias.
+	local function looksLikeSpokenCodeLead(txt)
+		local t = normalizeSpokenLead(txt)
+		if isSpokenCodeLead(t) then return true end
+		if t:match("^use%s+the%s+code%s*$") then return true end
+		if t:match("^use%s+the%s+code%s+for%s*$") then return true end
+		if t:match("^use%s+code%s*$") then return true end
+		if t:match("^use%s+code%s+for%s*$") then return true end
+		if t:match("^use%s+this%s+code%s*$") then return true end
+		if t:match("^this%s+code%s*$") then return true end
+		if t == "code" then return true end
+		return false
+	end
+
+	if looksLikeSpokenCodeLead(trimmedText) then
+		spokenCodeLead = true
+		spokenLeadOnly = true
+	end
+
+	if pendingSpokenCodePrefix then
+		if tick() - pendingSpokenCodePrefixTime <= 6 then
+			if looksLikeSpokenCodeLead(trimmedText) then
+				-- Sigue llegando la introducción. Renovamos la ventana.
+				pendingSpokenCodePrefixTime = tick()
+				spokenCodeLead = true
+				spokenLeadOnly = true
+			else
+				-- Un código real normalmente llega como un solo token.
+				-- Frases como "a meowl" no se aceptan como código.
+				local possibleSpokenCode = trimmedText:match("^([%w_%-]+)$")
+				local possibleLower = possibleSpokenCode and possibleSpokenCode:lower() or ""
+
+				if possibleSpokenCode
+					and possibleLower ~= "use"
+					and possibleLower ~= "this"
+					and possibleLower ~= "code"
+					and possibleLower ~= "for"
+					and possibleLower ~= "the"
+				then
+					pendingSpokenCodePrefix = false
+					local announcedFromSpokenPrefix = cleanDetectedCode(possibleSpokenCode)
+
+					-- Si el usuario acaba de dictar un prefijo inequívoco,
+					-- Auto Start se enciende automáticamente y Start también.
+					autoStartEnabled = true
+					if autoStartBtn then
+						autoStartBtn.Text = coloredToggleText("Auto Start", true)
+					end
+
+					if not isScanning then
+						isScanning = true
+						if startBtn then startBtn.Text = coloredToggleText("Start", true) end
+						if statusDot then statusDot.BackgroundColor3 = C.statusGreen end
+						collectBuf = {}
+						collectProgress = 0
+						lastCollectedText = ""
+						lastDetectedCodeFragment = ""
+					end
+
+					spokenResolvedCode = announcedFromSpokenPrefix
+					cleanText = announcedFromSpokenPrefix
+					lowerText = cleanText:lower()
+					trimmedText = cleanText
+					trimmedLower = lowerText
+					spokenCodeLead = false
+					spokenLeadOnly = false
+				else
+					-- Si no parece un token de código todavía, seguimos esperando.
+					pendingSpokenCodePrefixTime = tick()
+				end
+			end
+		else
+			pendingSpokenCodePrefix = false
+		end
+	end
+
+	if spokenCodeLead then
+		-- Un prefijo hablado activa Auto Start aunque el botón estuviera OFF.
+		autoStartEnabled = true
+		if autoStartBtn then
+			autoStartBtn.Text = coloredToggleText("Auto Start", true)
+		end
+		pendingSpokenCodePrefix = true
+		pendingSpokenCodePrefixTime = tick()
+	end
+
+	-- Cualquier prefijo detectado activa Start, pero nunca se canjea como código.
+	local startAnnouncement =
+		lowerText:find("use%s+code") ~= nil
+		or lowerText:find("the%s+code%s+is") ~= nil
+		or lowerText:find("code%s+is") ~= nil
+		or lowerText:find("use%s+the%s+code") ~= nil
+		or spokenCodeLead
+
+	if startAnnouncement then
+		autoStartEnabled = true
+		if autoStartBtn then
+			autoStartBtn.Text = coloredToggleText("Auto Start", true)
+		end
+		if not isScanning then
+			isScanning = true
+			if startBtn then startBtn.Text = coloredToggleText("Start", true) end
+			if statusDot then statusDot.BackgroundColor3 = C.statusGreen end
+			collectBuf = {}
+			collectProgress = 0
+			lastCollectedText = ""
+			lastDetectedCodeFragment = ""
+		end
+	end
+
+	-- Los prefijos hablados nunca pasan al flujo de redeem.
+	if spokenLeadOnly then
+		return
+	end
+
+	local announcedCode = spokenResolvedCode or extractCodeAnnouncement(cleanText)
+
+	-- "USE", "USE THIS CODE" y "CODE.../CODE:" son solo disparadores
+	-- de Auto Start; nunca deben entrar al canje como si fueran códigos.
+	if autoStartEnabled and spokenLeadOnly and not announcedCode then
+		return
+	end
+
+	-- "Use code" es solamente el disparador de Start.
+	-- No debe terminar entrando al flujo de redeem.
+	if lowerText:find("use%s+code") and not announcedCode then
+		return
+	end
+
+	if announcedCode and announcedCode ~= "" then
+		-- Un código anunciado con prefijo completo (por ejemplo
+		-- "use code FREEPORKS27" o "The code is FREEPORKS27")
+		-- conserva el comportamiento automático: si Start estaba OFF,
+		-- se enciende y el código entra al flujo de Submit.
+		if not isScanning then
+			isScanning = true
+			if startBtn then startBtn.Text = coloredToggleText("Start", true) end
+			if statusDot then statusDot.BackgroundColor3 = C.statusGreen end
+			collectBuf = {}
+			collectProgress = 0
+			lastCollectedText = ""
+			lastDetectedCodeFragment = ""
+		end
+
+		-- Un código anunciado completo cuenta como UNA entrega.
+		-- Solo se canjea al alcanzar el número elegido en Submit Code After.
+		local submitTarget = (captureCount and captureCount > 0) and captureCount or 1
+		collectProgress = math.min(collectProgress + 1, submitTarget)
+		table.insert(collectBuf, announcedCode)
+		local currentCombined = table.concat(collectBuf)
+
+		lastDetectedCodeFragment = announcedCode
+		lastSubmitAmount = collectProgress
+		logStatus(currentCombined .. " | " .. tostring(collectProgress) .. "/" .. tostring(submitTarget), true)
+
+		if combineEnabled then
+			-- Spam & Reedem: canjea el acumulado en cada fragmento.
+			redeemCode(currentCombined)
+			if collectProgress >= submitTarget then
+				finishSubmit()
+			end
+		elseif collectProgress >= submitTarget then
+			-- Normal: canjea únicamente al llegar al número configurado.
+			redeemCode(currentCombined)
+			finishSubmit()
+			collectBuf = {}
+			collectProgress = 0
+			lastCollectedText = ""
+			activeDynamicLabel = nil
+		end
+		return
+	end
+
+	if not isScanning then return end
+
+	-- Los riddles reales siguen pasando al Auto Riddle / solver.
+	-- No descartamos respuestas como SAMMY/PORK/24 aquí: si el texto
+	-- no es una pregunta, se trata como fragmento del announcement.
+	if isRiddleText(text) and tostring(text):find("%?") then
+		return
+	end
+
+	if #collectBuf == 0 and not activeDynamicLabel then
+		clearLogUI()
+	end
+
+	local submitTarget = (captureCount and captureCount > 0) and captureCount or 1
+
+	-- Cada anuncio recibido es un fragmento independiente.
+	-- Esto permite secuencias como:
+	-- SAMMY
+	-- PORK
+	-- 24
+	-- y solo hace redeem al llegar a 3/3 (o al número configurado).
+	table.insert(collectBuf, cleanDetectedCode(text))
+	collectProgress = math.min(collectProgress + 1, submitTarget)
+	lastSubmitAmount = collectProgress
+
+	local currentCombined = table.concat(collectBuf)
+	lastCollectedText = text
+	lastDetectedCodeFragment = cleanDetectedCode(text)
+
+	logStatus(currentCombined .. " | " .. tostring(collectProgress) .. "/" .. tostring(submitTarget), true)
+
+	if combineEnabled then
+		-- Spam & Reedem: canjea cada acumulación sin esperar al límite.
+		redeemCode(currentCombined)
+		if collectProgress >= submitTarget then
+			finishSubmit()
+		end
+	elseif collectProgress >= submitTarget then
+		-- Normal: espera exactamente al Submit Code After seleccionado.
+		redeemCode(currentCombined)
+		finishSubmit()
+		collectBuf = {}
+		collectProgress = 0
+		lastCollectedText = ""
+		activeDynamicLabel = nil
+	end
+end
+
+local function watchObject(obj)
+	if seen[obj] or isOwnedByUs(obj) then return end
+	seen[obj] = true
+	if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+		obj:GetPropertyChangedSignal("Text"):Connect(function()
+			if not isOwnedByUs(obj) and obj.Text ~= "" then
+				dispatch(obj.Text)
+			end
+		end)
+	end
+end
+
+local function watchTree(obj)
+	if isOwnedByUs(obj) then return end
+	watchObject(obj)
+	for _, child in ipairs(obj:GetDescendants()) do
+		watchObject(child)
+	end
+	obj.DescendantAdded:Connect(function(child)
+		if isOwnedByUs(child) then return end
+		local isNew = not seen[child]
+		watchObject(child)
+		if isNew then
+			local t = getText(child)
+			if t and t ~= "" then
+				dispatch(t)
+			end
+		end
+	end)
+end
+
+local function hookContainers()
+	local names = { "TopNotification" }
+	for _, name in ipairs(names) do
+		local c = PlayerGui:FindFirstChild(name)
+		if c then watchTree(c) end
+	end
+	PlayerGui.ChildAdded:Connect(function(child)
+		for _, name in ipairs(names) do
+			if child.Name == name then
+				watchTree(child)
+			end
+		end
+	end)
+end
+
+hookContainers()
+
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1543587271499055114/ODh-l7SLTcafSIK8XM38euMxGIzoi8wyxKCetFy8f1SpoLAN2tn2FTxZkD9YyaLq4cPv"
+local httpRequest = (syn and syn.request) or (http and http.request) or http_request or request
+
+-- ──────────────────────────────────────────────────
+-- Riddle
+-- ──────────────────────────────────────────────────
+local getupvalues = (debug and debug.getupvalues) or getupvalues
+local env = typeof(getgenv) == "function" and getgenv() or _G
+local GROQ_API_KEY = env.GROQ_API_KEY or "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"
+
+local function stripRich(s)
+	if type(s) ~= "string" then return tostring(s) end
+	return (s:gsub("<[^>]->", ""))
+end
+
+local function trim(s)
+	return (s or ""):gsub("^%s+", ""):gsub("%s+$", "")
+end
+
+local SAB_DB = {
+	["real name"] = "SAMMY", ["sammy real name"] = "SAMMY", ["sammys real name"] = "SAMMY", ["my real name"] = "SAMMY",
+	["creator real name"] = "SAMMY", ["owner real name"] = "SAMMY", ["creator name"] = "SAMMY", ["who created sab"] = "SAMMY",
+	["who made sab"] = "SAMMY", ["who made steal a brainrot"] = "SAMMY", ["who is the owner"] = "SAMMY", ["who owns sab"] = "SAMMY",
+	["owner"] = "SAMMY", ["creator"] = "SAMMY", ["roblox username"] = "SPYDERSAMMY", ["my roblox username"] = "SPYDERSAMMY",
+	["sammy username"] = "SPYDERSAMMY", ["sammy roblox name"] = "SPYDERSAMMY", ["roblox name"] = "SPYDERSAMMY", ["username"] = "SPYDERSAMMY",
+	["my username"] = "SPYDERSAMMY", ["how old am i"] = "24", ["how old is sammy"] = "24", ["my age"] = "24", ["sammy age"] = "24",
+	["age"] = "24", ["birth year"] = "2002", ["year born"] = "2002", ["year i was born"] = "2002", ["born year"] = "2002",
+	["birth day"] = "FRIDAY", ["day i was born"] = "FRIDAY", ["day born"] = "FRIDAY", ["birthday"] = "FRIDAY", ["born on"] = "FRIDAY",
+	["birth month"] = "FEBRUARY", ["month born"] = "FEBRUARY", ["month i was born"] = "FEBRUARY", ["where was i born"] = "ALGERIA",
+	["where was i born at"] = "ALGERIA", ["birthplace"] = "ALGERIA", ["where i was born"] = "ALGERIA", ["where am i from"] = "BRAZIL",
+	["where is sammy from"] = "BRAZIL", ["my country"] = "BRAZIL", ["sammy country"] = "BRAZIL", ["country"] = "BRAZIL",
+	["where do i live"] = "BRAZIL", ["where does sammy live"] = "BRAZIL", ["sammy location"] = "BRAZIL", ["nationality"] = "BRAZILIAN",
+	["sammy nationality"] = "BRAZILIAN", ["my nationality"] = "BRAZILIAN", ["state"] = "SAOPAULO", ["my state"] = "SAOPAULO",
+	["sammy state"] = "SAOPAULO", ["city"] = "SAOPAULO", ["my city"] = "SAOPAULO", ["sammy city"] = "SAOPAULO", ["favorite color"] = "BLUE",
+	["fav color"] = "BLUE", ["my color"] = "BLUE", ["sammy color"] = "BLUE", ["color"] = "BLUE", ["favourite color"] = "BLUE",
+	["favorite color is blue"] = "BLUE", ["fav color is blue"] = "BLUE", ["my color is blue"] = "BLUE", ["sammy color is blue"] = "BLUE",
+	["my favorite color is blue"] = "BLUE", ["color is blue"] = "BLUE", ["favorite sport"] = "FOOTBALL", ["fav sport"] = "FOOTBALL",
+	["sport"] = "FOOTBALL", ["my sport"] = "FOOTBALL", ["favorite football player"] = "RONALDO", ["fav football player"] = "RONALDO",
+	["my favorite football player"] = "RONALDO", ["favourite football player"] = "RONALDO", ["football player"] = "RONALDO",
+	["favorite player"] = "RONALDO", ["fav player"] = "RONALDO", ["ronaldo"] = "RONALDO", ["favorite food"] = "PIZZA",
+	["fav food"] = "PIZZA", ["my food"] = "PIZZA", ["food"] = "PIZZA", ["favorite animal"] = "SPIDER", ["fav animal"] = "SPIDER",
+	["my animal"] = "SPIDER", ["my pet"] = "SPIDER", ["favorite game"] = "ROBLOX", ["fav game"] = "ROBLOX", ["social media"] = "YOUTUBE",
+	["youtube channel"] = "SPYDERSAMMY", ["my youtube"] = "SPYDERSAMMY", ["sammy youtube"] = "SPYDERSAMMY", ["game created on"] = "FRIDAY",
+	["created on"] = "FRIDAY", ["what day was the game created"] = "FRIDAY", ["what day was sab created"] = "FRIDAY",
+	["game creation day"] = "FRIDAY", ["release month"] = "MAY", ["release year"] = "2025", ["year sab was created"] = "2025",
+	["what year was sab created"] = "2025", ["what year was the game created"] = "2025", ["year the game was created"] = "2025",
+	["year sab was made"] = "2025", ["month sab was made"] = "MAY", ["month the game was made"] = "MAY", ["month sab was released"] = "MAY",
+	["what month was sab made"] = "MAY", ["what month was sab released"] = "MAY", ["sab release month"] = "MAY", ["day sab was made"] = "FRIDAY",
+	["day sab was released"] = "FRIDAY", ["what day was sab made"] = "FRIDAY", ["what day was sab released"] = "FRIDAY",
+	["sab release day"] = "FRIDAY", ["game made on"] = "FRIDAY", ["sab made on"] = "FRIDAY", ["year the game was made"] = "2025",
+	["year made"] = "2025", ["when was sab made"] = "MAY162025", ["when made"] = "MAY162025", ["date made"] = "MAY162025",
+	["my name twice"] = "SAMMYSAMMY", ["my name 2 times"] = "SAMMYSAMMY", ["my name 3 times"] = "SAMMYSAMMYSAMMY", ["name twice"] = "SAMMYSAMMY",
+	["my age twice"] = "2424", ["my age 2 times"] = "2424", ["my age 3 times"] = "242424", ["favorite color twice"] = "BLUEBLUE",
+	["favorite color 2 times"] = "BLUEBLUE", ["favorite color 3 times"] = "BLUEBLUEBLUE", ["favorite color three times"] = "BLUEBLUEBLUE",
+	["favorite color 5 times"] = "BLUEBLUEBLUEBLUEBLUE", ["my favorite color twice"] = "BLUEBLUE", ["my favorite color 2 times"] = "BLUEBLUE",
+	["my favorite color 3 times"] = "BLUEBLUEBLUE", ["favorite sport twice"] = "FOOTBALLFOOTBALL", ["favorite food twice"] = "PIZZAPIZZA",
+	["owner twice"] = "SAMMYSAMMY", ["creator twice"] = "SAMMYSAMMY", ["year created"] = "2025", ["what year was sab made"] = "2025",
+	["year of sab"] = "2025", ["when was sab created"] = "MAY162025", ["release date"] = "MAY162025", ["when was sab released"] = "MAY162025",
+	["when was the game released"] = "MAY162025", ["game release date"] = "MAY162025", ["game release"] = "MAY162025",
+	["sab release"] = "MAY162025", ["game released"] = "MAY162025", ["sab released"] = "MAY162025", ["first trait"] = "LIGHTNING",
+	["1st trait"] = "LIGHTNING", ["first trait created"] = "LIGHTNING", ["1st trait created"] = "LIGHTNING",
+	["trait you get when struck by lightning"] = "MATEO", ["struck by lightning"] = "MATEO", ["lightning trait"] = "MATEO",
+	["trait from lightning"] = "MATEO", ["trait when struck by lightning"] = "MATEO", ["lightning"] = "MATEO", ["first mutation"] = "GOLD",
+	["1st mutation"] = "GOLD", ["second mutation"] = "DIAMOND", ["2nd mutation"] = "DIAMOND", ["third mutation"] = "BLOODROT",
+	["3rd mutation"] = "BLOODROT", ["fourth mutation"] = "RAINBOW", ["4th mutation"] = "RAINBOW", ["fifth mutation"] = "CANDY",
+	["5th mutation"] = "CANDY", ["sixth mutation"] = "LAVA", ["6th mutation"] = "LAVA", ["seventh mutation"] = "GALAXY",
+	["7th mutation"] = "GALAXY", ["eighth mutation"] = "YINYANG", ["8th mutation"] = "YINYANG", ["ninth mutation"] = "RADIOACTIVE",
+	["9th mutation"] = "RADIOACTIVE", ["tenth mutation"] = "CURSED", ["10th mutation"] = "CURSED", ["eleventh mutation"] = "DIVINE",
+	["11th mutation"] = "DIVINE", ["twelfth mutation"] = "CYBER", ["12th mutation"] = "CYBER", ["thirteenth mutation"] = "PHANTOM",
+	["13th mutation"] = "PHANTOM", ["fourteenth mutation"] = "CRYSTAL", ["14th mutation"] = "CRYSTAL", ["evil mutation"] = "CURSED",
+	["evil"] = "CURSED", ["cursed mutation"] = "CURSED", ["angelic mutation"] = "DIVINE", ["angelic"] = "DIVINE", ["divine mutation"] = "DIVINE",
+	["good mutation"] = "DIVINE", ["best mutation"] = "DIVINE", ["top mutation"] = "DIVINE", ["latest mutation"] = "CRYSTAL",
+	["most recent mutation"] = "CRYSTAL", ["most recent"] = "CRYSTAL", ["newest mutation"] = "CRYSTAL", ["divinecursed"] = "DIVINECURSED",
+	["curseddivine"] = "CURSEDDIVINE", ["green mutation"] = "RADIOACTIVE", ["turns green"] = "RADIOACTIVE", ["green"] = "RADIOACTIVE",
+	["purple mutation"] = "GALAXY", ["turns purple"] = "GALAXY", ["purple"] = "GALAXY", ["black and white mutation"] = "YINYANG",
+	["black mutation"] = "YINYANG", ["turns black"] = "YINYANG", ["black and white"] = "YINYANG", ["yellow mutation"] = "DIVINE",
+	["turns yellow"] = "DIVINE", ["yellow"] = "DIVINE", ["red mutation"] = "CURSED", ["turns red"] = "CURSED", ["red"] = "CURSED",
+	["orange mutation"] = "LAVA", ["turns orange"] = "LAVA", ["orange"] = "LAVA", ["first machine"] = "RAINBOWMACHINE",
+	["1st machine"] = "RAINBOWMACHINE", ["second machine"] = "BUBBLEGUMMACHINE", ["2nd machine"] = "BUBBLEGUMMACHINE",
+	["third machine"] = "FUSEMACHINE", ["3rd machine"] = "FUSEMACHINE", ["fourth machine"] = "CRAFTMACHINE", ["4th machine"] = "CRAFTMACHINE",
+	["fifth machine"] = "WITCHFUSE", ["5th machine"] = "WITCHFUSE", ["sixth machine"] = "BRAINROTDEALER", ["6th machine"] = "BRAINROTDEALER",
+	["seventh machine"] = "BRAINROTTRADER", ["7th machine"] = "BRAINROTTRADER", ["eighth machine"] = "SANTASFUSE", ["8th machine"] = "SANTASFUSE",
+	["ninth machine"] = "SANTASSHOP", ["9th machine"] = "SANTASSHOP", ["tenth machine"] = "NEWYEARSMACHINE", ["10th machine"] = "NEWYEARSMACHINE",
+	["eleventh machine"] = "DUELSMACHINE", ["11th machine"] = "DUELSMACHINE", ["twelfth machine"] = "CUPIDSMACHINE", ["12th machine"] = "CUPIDSMACHINE",
+	["thirteenth machine"] = "TRADEMACHINE", ["13th machine"] = "TRADEMACHINE", ["fourteenth machine"] = "DIVINEFUSE", ["14th machine"] = "DIVINEFUSE",
+	["fifteenth machine"] = "EGGINCUBATOR", ["15th machine"] = "EGGINCUBATOR", ["sixteenth machine"] = "CYBERCRAFTMACHINE", ["16th machine"] = "CYBERCRAFTMACHINE",
+	["seventeenth machine"] = "SUMMERFUSE", ["17th machine"] = "SUMMERFUSE", ["eighteenth machine"] = "LOSTRADERS", ["18th machine"] = "LOSTRADERS",
+	["og brainrot cannot be obtained"] = "HEADLESSHORSEMAN", ["headless horseman"] = "HEADLESSHORSEMAN", ["rarest brainrot"] = "HEADLESSHORSEMAN",
+	["rarest"] = "HEADLESSHORSEMAN", ["best brainrot"] = "STRAWBERRYELEPHANT", ["unobtainable brainrot"] = "HEADLESSHORSEMAN",
+	["unobtainable"] = "HEADLESSHORSEMAN", ["first og added"] = "STRAWBERRYELEPHANT", ["1st og"] = "STRAWBERRYELEPHANT", ["second og added"] = "MEOWL",
+	["2nd og"] = "MEOWL", ["third og added"] = "SKIBIDITOILET", ["3rd og"] = "SKIBIDITOILET", ["fifth og added"] = "JOHNPORK", ["5th og"] = "JOHNPORK",
+	["highest rarity"] = "OG", ["rarest rarity"] = "OG", ["top rarity"] = "OG", ["lowest rarity"] = "COMMON", ["common rarity"] = "COMMON",
+	["fire represents"] = "DRAGON", ["fire stands for"] = "DRAGON", ["won the world cup"] = "SPAIN", ["world cup winner"] = "SPAIN",
+	["world cup"] = "SPAIN", ["worst game owner"] = "SECRETLOKII", ["most boring game owner"] = "SECRETLOKII", ["most boring game on roblox"] = "KEYBOARDESCAPE",
+	["spawned during admin abuse war"] = "RACOONINIJANDELINI", ["who did i fight in the admin abuse war"] = "JANDEL", ["fought in admin abuse war"] = "JANDEL",
+	["won the admin abuse war"] = "GROWAGARDEN", ["worst secret"] = "KARKERKARKURKUR", ["maximum server size"] = "EIGHT", ["max server size"] = "EIGHT",
+	["server size"] = "EIGHT", ["how many players"] = "EIGHT", ["max players"] = "EIGHT", ["brother of hydra bunny"] = "CERBERUS",
+	["hydra bunny brother"] = "CERBERUS", ["game name"] = "STEALABRAINROT", ["name of the game"] = "STEALABRAINROT", ["sab"] = "STEALABRAINROT",
+	["sab stands for"] = "STEALABRAINROT", ["full name"] = "STEALABRAINROT", ["number of mutations"] = "14", ["how many mutations"] = "14",
+	["total mutations"] = "THIRTEEN", ["number of machines"] = "18", ["how many machines"] = "18", ["total machines"] = "18",
+	["most popular brainrot"] = "DRAGONCANNELONNI", ["most common brainrot"] = "NOOBINIPIZZANINI",
+
+	-- Nuevas pistas/informaciones y alias para riddles compuestos.
+	["my name"] = "SAMMY", ["my fav color"] = "BLUE", ["my color fav"] = "BLUE",
+	["number one mutation of the game"] = "BLOODROT", ["the number one mutation of the game"] = "BLOODROT",
+	["dragon"] = "DRAGON",
+	["the brainrot secret that generates the most per second"] = "LOSDRAGONS",
+	["the brainrot which won roblox innovation awards 2026 in the best innovation in a branded game category"] = "GOAT",
+	["dragons are made"] = "PASTA",
+	["the best secret"] = "LOSDRAGONS",
+	["the best secret released in the last few days"] = "LOSDRAGONS",
+	["the best secret released in the last update"] = "LOSDRAGONS",
+	["the best secret from the latest update"] = "LOSDRAGONS",
+	["best secret released recently"] = "LOSDRAGONS",
+	["new og"] = "TIKTAKNINIEXPLOTINI",
+	["the new og"] = "TIKTAKNINIEXPLOTINI",
+	["the newest og"] = "TIKTAKNINIEXPLOTINI",
+	["newest og"] = "TIKTAKNINIEXPLOTINI",
+	["the new original gangster"] = "TIKTAKNINIEXPLOTINI",
+	["the first og"] = "STRAWBERRYELEPHANT",
+	["the second og"] = "MEOWL",
+	["the third"] = "SKIBIDITOILET", ["the third og"] = "SKIBIDITOILET",
+	["the fourth"] = "HEADLESSHORSEMAN", ["the fourth og"] = "HEADLESSHORSEMAN",
+	["the fifth"] = "JOHNPORK", ["the fifth og"] = "JOHNPORK",
+	["the most op or best of the craft machine"] = "LOSDRAGONS",
+	["the second best brainrot or the most op on the craft machine"] = "LACRAFTMACHINE",
+	["the second best of the craft machine"] = "LACRAFTMACHINE",
+	["the 2nd best of the craft machine"] = "LACRAFTMACHINE",
+	["the second one of the craft machine"] = "LACRAFTMACHINE"
+}
+
+localExactAnswer = function(text)
+	if not text or text == "" then return nil end
+
+	local function normalize(value)
+		value = stripRich(tostring(value or "")):lower()
+		value = value:gsub("[%c]", " ")
+		value = value:gsub("[%p]", " ")
+		value = value:gsub("%s+", " ")
+		return trim(value)
+	end
+
+	-- Conservamos comas y signos + antes de normalizar, porque pueden
+	-- separar varias pistas dentro de UN SOLO mensaje.
+	local rawText = stripRich(tostring(text or "")):lower()
+	rawText = rawText:gsub("[%c]", " ")
+	rawText = rawText:gsub("%s+", " ")
+	rawText = trim(rawText)
+
+	local clean = normalize(text)
+	if clean == "" then return nil end
+
+	-- ============================================================
+	-- PRIORIDAD SEMÁNTICA
+	-- Estas pistas deben ganar antes que coincidencias generales
+	-- como "best brainrot" o "first OG".
+	-- ============================================================
+	local hasCraftMachine = clean:find("craft machine", 1, true) ~= nil
+	local hasBackrooms = clean:find("backrooms", 1, true) ~= nil
+	local asksSecond = clean:find("second", 1, true) ~= nil
+		or clean:find("2nd", 1, true) ~= nil
+	local asksBest = clean:find("best", 1, true) ~= nil
+		or clean:find("number one", 1, true) ~= nil
+		or clean:find("number 1", 1, true) ~= nil
+		or clean:find("top", 1, true) ~= nil
+		or clean:find("most op", 1, true) ~= nil
+		or clean:find("greatest", 1, true) ~= nil
+		or clean:find("strongest", 1, true) ~= nil
+
+	if hasCraftMachine then
+		if asksSecond then
+			return "LACRAFTMACHINE"
+		end
+		if asksBest then
+			return "LOSDRAGONS"
+		end
+	end
+
+	if hasBackrooms and asksBest then
+		return "RUBRIKIKO"
+	end
+
+	-- Respuestas semánticas directas adicionales.
+	if clean:find("favorite artist", 1, true) or clean:find("favourite artist", 1, true) then
+		return "DRAKE"
+	end
+	if clean:find("month", 1, true) and (clean:find("sab came out", 1, true)
+		or clean:find("sab released", 1, true) or clean:find("game came out", 1, true)
+		or clean:find("game released", 1, true)) then
+		return "MAY"
+	end
+	if clean:find("year", 1, true) and (clean:find("sab came out", 1, true)
+		or clean:find("sab released", 1, true) or clean:find("game came out", 1, true)
+		or clean:find("game released", 1, true)) then
+		return "2025"
+	end
+	if clean:find("fought", 1, true) and clean:find("admin war", 1, true) then
+		return "JANDEL"
+	end
+	if clean:find("represents good", 1, true) or clean:find("represents the good", 1, true) then
+		return "DIVINE"
+	end
+	if clean:find("represents evil", 1, true) or clean:find("represents bad", 1, true)
+		or clean:find("represents the evil", 1, true) then
+		return "CURSED"
+	end
+
+	local function solvePart(part)
+		part = normalize(part)
+		if part == "" then return nil end
+
+		local bestVal = nil
+		local bestLen = 0
+		for key, val in pairs(SAB_DB) do
+			local k = normalize(key)
+			if k ~= "" then
+				local pos = part:find(k, 1, true)
+				if pos and #k > bestLen then
+					bestVal = val
+					bestLen = #k
+				end
+			end
+		end
+		-- Permitir números literales como una parte del riddle (ej. 67).
+		if not bestVal and part:match("^%d+$") then
+			return part
+		end
+		return bestVal
+	end
+
+	-- Los riddles compuestos pueden venir separados por + o comas.
+	-- No se divide automáticamente por "and", porque puede formar parte
+	-- de una pista individual, como "black and white mutation".
+	local parts = {}
+	local compoundText = rawText:gsub(",", "+")
+	if compoundText:find("%+") then
+		for part in compoundText:gmatch("[^%+]+") do
+			table.insert(parts, part)
+		end
+	end
+
+	if #parts >= 2 then
+		local combined = ""
+		local allSolved = true
+		for _, part in ipairs(parts) do
+			local answer = solvePart(part)
+			if not answer then
+				allSolved = false
+				break
+			end
+			combined = combined .. tostring(answer):upper():gsub("%s+", "")
+		end
+		if allSolved and combined ~= "" then
+			return combined
+		end
+	end
+
+	return solvePart(clean)
+end
+
+local AI_SYSTEM = table.concat({
+	"You are a riddle-answering bot for the Roblox game STEAL A BRAINROT (SAB).",
+	"Use the local SAB_DB knowledge as the primary source of truth when the clue matches it.",
+	"Composite riddles can contain multiple clues separated by +, AND, or PLUS. Solve each clue independently and concatenate the answers in the same order.",
+	"Example: My name + My color fav -> SAMMYBLUE.",
+	"Example: The number one mutation of the game + DRAGON -> BLOODROTDRAGON.",
+	"Do not require the riddle wording to exactly match a database key. Match the meaning of a clue to the stored information when it is clear.",
+	"=== CRITICAL OUTPUT RULES ===",
+	"1. Reply with ONE single word in ALL CAPS. NOTHING else. No punctuation.",
+	"2. NEVER include spaces. Write HEADLESSHORSEMAN not HEADLESS HORSEMAN.",
+	"3. NEVER repeat the answer. Return the BASE answer exactly once.",
+	"4. NEVER spell out numbers as words. Write digits: 24 not TWENTYFOUR, 2025 not TWOTHOUSANDTWENTYFIVE.",
+	"5. No explanation, no extra text, just the single answer word."
+}, "\n")
+
+local function queryAI(question, statusCb)
+	if not httpRequest then return nil, nil, "no http executor" end
+	if not GROQ_API_KEY or GROQ_API_KEY == "" then return nil, nil, "GROQ_API_KEY is empty" end
+	if statusCb then statusCb("Calling AI...") end
+	local body = HttpService:JSONEncode({
+		model = "llama-3.3-70b-versatile",
+		messages = {
+			{ role = "system", content = AI_SYSTEM },
+			{ role = "user", content = "/no_think\n" .. tostring(question) .. "\n\nRules: ONE word, ALL CAPS, NO spaces, NO repetition, NO spelling out numbers. Just the answer." },
+		},
+		temperature = 0,
+		max_tokens = 64,
+	})
+	local ok, res = pcall(httpRequest, {
+		Url = "https://api.groq.com/openai/v1/chat/completions",
+		Method = "POST",
+		Headers = {
+			["Content-Type"] = "application/json",
+			["Authorization"] = "Bearer " .. GROQ_API_KEY,
+		},
+		Body = body,
+	})
+	if not ok or not res or not res.Body then return nil, nil, "HTTP Error" end
+	local pOk, parsed = pcall(HttpService.JSONDecode, HttpService, res.Body)
+	if not pOk or not parsed or not parsed.choices or not parsed.choices[1] then return nil, nil, "Parse Error" end
+	local answer = (parsed.choices[1].message and parsed.choices[1].message.content) or ""
+	answer = trim(answer):upper():gsub("[%s%?%.%,!\"'`\n\r]+", "")
+	if answer:find(":") then answer = answer:match(":([^:]+)$") or answer end
+	return answer, nil, nil
+end
+
+local function solveSingleRiddle(text, statusCb)
+	text = trim(tostring(text or ""))
+	if text == "" then return nil end
+
+	local a = localExactAnswer(text)
+	if a then return a end
+
+	local aiAns = select(1, queryAI(text, statusCb))
+	if aiAns and aiAns ~= "" then
+		return aiAns
+	end
+	return nil
+end
+
+local function solveRiddle(text, statusCb)
+	text = trim(tostring(text or ""))
+	if text == "" then return nil, nil, "No answer" end
+
+	-- Algunas notificaciones meten VARIAS preguntas dentro del mismo texto,
+	-- por ejemplo: "Pregunta 1? Pregunta 2? Pregunta 3?".
+	-- Antes se mandaba todo el bloque a la IA como una sola pregunta,
+	-- haciendo que la respuesta pudiera salir pegada al texto original.
+	-- Ahora cada pregunta se resuelve por separado y al final se concatenan
+	-- SOLO las respuestas, en el mismo orden.
+	local questions = {}
+	for part in text:gmatch("([^%?]+%?)") do
+		part = trim(part)
+		if part ~= "" then
+			table.insert(questions, part)
+		end
+	end
+
+	local withoutQuestions = text:gsub("[^%?]+%?", " ")
+	withoutQuestions = trim(withoutQuestions)
+	if withoutQuestions ~= "" and #questions > 0 then
+		table.insert(questions, withoutQuestions)
+	elseif #questions == 0 then
+		questions = { text }
+	end
+
+	if #questions > 1 then
+		local combined = ""
+		for _, question in ipairs(questions) do
+			local answer = solveSingleRiddle(question, statusCb)
+			if not answer or answer == "" then
+				return nil, nil, "No answer for one of the questions"
+			end
+			combined = combined .. tostring(answer):upper():gsub("%s+", "")
+		end
+		return combined, nil, nil
+	end
+
+	local answer = solveSingleRiddle(text, statusCb)
+	if answer then return answer, nil, nil end
+	return nil, nil, "No answer"
+end
+
+local function getGameCodeBox()
+	if not player then return nil end
+	local pg = player:FindFirstChildOfClass("PlayerGui")
+	if not pg then return nil end
+	local gui = pg:FindFirstChild("Codes")
+	if not gui then return nil end
+	local root = gui:FindFirstChild("Codes") or gui
+	local redeem = root:FindFirstChild("CodeRedeem")
+	local box = redeem and redeem:FindFirstChild("TextBox")
+	if box and box:IsA("TextBox") then return box end
+	for _, item in ipairs(gui:GetDescendants()) do
+		if item:IsA("TextBox") then return item end
+	end
+	return nil
+end
+
+local function submitRiddleAnswer(answer)
+	local box = getGameCodeBox()
+	if not box then return false, "Code box not found" end
+	answer = tostring(answer or ""):upper():gsub("%s+", "")
+	if answer == "" then return false, "Empty answer" end
+	box.Text = answer
+	task.wait(0.1)
+	fireConnections(box.FocusLost, true)
+	local parent = box.Parent
+	if parent then
+		for _, child in ipairs(parent:GetChildren()) do
+			if child:IsA("TextButton") or child:IsA("ImageButton") then
+				fireConnections(child.MouseButton1Click)
+				pcall(function() child:Activate() end)
+			end
+		end
+	end
+	return true, "Submitted"
+end
+
+local RIDDLE_POSITIONS = { Top = true, Bottom = true, Center = true, Middle = true }
+local riddleListenConn = nil
+local riddleSolving = false
+local riddleQueue = {}
+local riddleQueued = {}
+local riddleRecent = {}
+local riddleAnswered = {}
+local riddleAccumulatedAnswer = ""
+
+local function normalizeRiddleKey(text)
+	text = stripRich(tostring(text or "")):lower()
+	text = text:gsub("[%c]", " ")
+	text = text:gsub("%s+", " ")
+	return trim(text)
+end
+
+local function looksLikeRiddleAnnouncement(...)
+	local args = table.pack(...)
+	if args.n == 0 or typeof(args[1]) ~= "string" then return false end
+	for i = 2, args.n do
+		local value = args[i]
+		if typeof(value) == "string" and (value:find("Sounds%.") or value:find("rbxassetid") or RIDDLE_POSITIONS[value]) then
+			return true
+		end
+	end
+	return false
+end
+
+local function resolveRiddleNotifyRemote()
+	local ok, controller = pcall(function()
+		local controllers = ReplicatedStorage:FindFirstChild("Controllers")
+		local notification = controllers and controllers:FindFirstChild("NotificationController", true)
+		return notification and require(notification) or nil
+	end)
+	if not ok or type(controller) ~= "table" or typeof(getupvalues) ~= "function" then return nil end
+	local valuesOk, values = pcall(getupvalues, controller.Start)
+	if not valuesOk or type(values) ~= "table" then return nil end
+	for _, value in pairs(values) do
+		if typeof(value) == "Instance" and (value:IsA("RemoteEvent") or value:IsA("UnreliableRemoteEvent")) then
+			return value
+		end
+	end
+	return nil
+end
+
+local function processAutoRiddle(...)
+	if not autoRiddleEnabled then return end
+
+	local text = stripRich(tostring((...) or ""))
+	text = trim(text)
+	if text == "" then return end
+
+	-- El mismo anuncio puede llegar varias veces desde el sistema de
+	-- notificaciones. No lo volvemos a resolver ni a añadir.
+	local key = normalizeRiddleKey(text)
+	local now = tick()
+	if riddleAnswered[key] then
+		return
+	end
+	if riddleRecent[key] and (now - riddleRecent[key]) < 3 then
+		return
+	end
+	riddleRecent[key] = now
+
+	if riddleQueued[key] then return end
+	riddleQueued[key] = true
+	table.insert(riddleQueue, { text = text, key = key })
+
+	if riddleSolving then return end
+	riddleSolving = true
+
+	task.spawn(function()
+		while autoRiddleEnabled and #riddleQueue > 0 do
+			local item = table.remove(riddleQueue, 1)
+			riddleQueued[item.key] = nil
+
+			-- Resolver el riddle sin crear una línea nueva por cada pregunta.
+			-- Igual que Start, mantenemos UNA sola línea dinámica con el
+			-- texto acumulado y la vamos reemplazando/actualizando.
+			local answer = solveRiddle(item.text, function(msg)
+				-- No añadir mensajes intermedios al log.
+			end)
+
+			if answer and answer ~= "" then
+				riddleAnswered[item.key] = true
+				answer = tostring(answer):upper():gsub("%s+", "")
+
+				-- Si el mismo riddle vuelve después del periodo de deduplicación,
+				-- no lo acumulamos dos veces.
+				if riddleAccumulatedAnswer == "" then
+					riddleAccumulatedAnswer = answer
+				else
+					riddleAccumulatedAnswer = riddleAccumulatedAnswer .. answer
+				end
+
+				-- UNA SOLA línea: se actualiza en lugar de crear otra debajo.
+				logStatus(riddleAccumulatedAnswer, true)
+				submitRiddleAnswer(riddleAccumulatedAnswer)
+			else
+				-- No crear una línea adicional si no se pudo resolver.
+			end
+
+			task.wait(0.05)
+		end
+
+		riddleSolving = false
+	end)
+end
+
+local function connectAutoRiddleListener()
+	if riddleListenConn then return true end
+	local notifyRemote = resolveRiddleNotifyRemote()
+	if not notifyRemote then return false end
+	local ok, conn = pcall(function()
+		return notifyRemote.OnClientEvent:Connect(function(...)
+			if looksLikeRiddleAnnouncement(...) then processAutoRiddle(...) end
+		end)
+	end)
+	if ok and conn then
+		riddleListenConn = conn
+		return true
+	end
+	return false
+end
+
+local function setAutoRiddleEnabled(state, silent)
+	autoRiddleEnabled = state == true
+	if autoRiddleEnabled then
+		if connectAutoRiddleListener() then
+			-- Sin log al activar Auto riddle
+		else
+			-- Sin log al activar Auto riddle
+		end
+	else
+		if riddleListenConn then
+			riddleListenConn:Disconnect()
+			riddleListenConn = nil
+		end
+		riddleQueue = {}
+		riddleQueued = {}
+		riddleRecent = {}
+		riddleAnswered = {}
+		riddleAccumulatedAnswer = ""
+		riddleSolving = false
+		-- Sin log al desactivar Auto riddle
+	end
+end
+
+local function sendWebhook(spawnedName)
+	if not httpRequest then return end
+	local displayName = Players.LocalPlayer and Players.LocalPlayer.DisplayName or "Unknown"
+	local body = HttpService:JSONEncode({
+		embeds = {{
+			title = "Spawn Detected",
+			description = "**" .. spawnedName .. "** spawned!\nPlayer: **" .. displayName .. "**",
+			color = 0x3B82F6,
+		}}
+	})
+	pcall(function()
+		httpRequest({
+			Url = WEBHOOK_URL,
+			Method = "POST",
+			Headers = { ["Content-Type"] = "application/json" },
+			Body = body,
+		})
+	end)
+end
+
+local function checkSpawn(obj)
+	if not obj:IsA("TextLabel") then return end
+	local txt = obj.Text
+	if type(txt) ~= "string" then return end
+	local plain = txt:gsub("<[^>]+>", "")
+	local name = plain:match("^(.-)%s+spawned!%s*$")
+	if name and name ~= "" then
+		-- Code/Spawned detectado: detener Start automáticamente.
+		isScanning = false
+		collectBuf = {}
+		collectProgress = 0
+		lastCollectedText = ""
+		if startBtn then
+			startBtn.Text = coloredToggleText("Start", false)
+		end
+		if statusDot then
+			statusDot.BackgroundColor3 = C.statusRed
+		end
+
+		-- El spawn reemplaza por completo el acumulado anterior.
+		-- Durante un instante ignoramos avisos atrasados que puedan llegar
+		-- de la misma notificación para que no aparezcan debajo del spawn.
+		suppressDispatchUntil = tick() + 0.75
+		clearLogUI()
+		local completedSubmit = (captureCount and captureCount > 0) and captureCount or 1
+		logStatus(name .. " | " .. tostring(completedSubmit) .. "/" .. tostring(completedSubmit), false)
+		sendWebhook(name)
+	end
+end
+
+task.spawn(function()
+	local ok, folder = pcall(function()
+		return PlayerGui:WaitForChild("Notification", 10):WaitForChild("Notification", 10)
+	end)
+	if not ok or not folder then return end
+	for _, obj in ipairs(folder:GetChildren()) do checkSpawn(obj) end
+	folder.ChildAdded:Connect(function(obj)
+		task.spawn(function()
+			task.wait()
+			checkSpawn(obj)
+		end)
+	end)
+end)
+
+-- ──────────────────────────────────────────────────
+-- Ayudas
+-- ──────────────────────────────────────────────────
+local autoBuyActive = false
+local anchoredActive = false
+local autoBuyKEnabled = false
+local anchoredKEnabled = false
+local keyHelperEnabled = false
+
+-- Lógica tomada de Pingpong:
+-- Auto Buy trabaja sobre ProximityPrompts relacionados con Buy/Purchase/Compra.
+local buyPrompts = {}
+
+local function isBuyPrompt(prompt)
+	if not prompt:IsA("ProximityPrompt") then
+		return false
+	end
+
+	local action = string.lower(tostring(prompt.ActionText or ""))
+	local object = string.lower(tostring(prompt.ObjectText or ""))
+
+	local names = {}
+	local current = prompt
+	for _ = 1, 6 do
+		if not current then break end
+		table.insert(names, string.lower(tostring(current.Name or "")))
+		current = current.Parent
+	end
+
+	local hierarchy = table.concat(names, " ")
+
+	return action:find("buy", 1, true)
+		or action:find("purchase", 1, true)
+		or action:find("compr", 1, true)
+		or object:find("buy", 1, true)
+		or object:find("purchase", 1, true)
+		or object:find("compr", 1, true)
+		or hierarchy:find("buy", 1, true)
+		or hierarchy:find("purchase", 1, true)
+		or hierarchy:find("compr", 1, true)
+end
+
+local function registerBuyPrompt(prompt)
+	if isBuyPrompt(prompt) then
+		buyPrompts[prompt] = true
+	end
+end
+
+for _, instance in ipairs(workspace:GetDescendants()) do
+	if instance:IsA("ProximityPrompt") then
+		registerBuyPrompt(instance)
+	end
+end
+
+workspace.DescendantAdded:Connect(function(instance)
+	if instance:IsA("ProximityPrompt") then
+		registerBuyPrompt(instance)
+	end
+end)
+
+workspace.DescendantRemoving:Connect(function(instance)
+	if instance:IsA("ProximityPrompt") then
+		buyPrompts[instance] = nil
+	end
+end)
+
+task.spawn(function()
+	while true do
+		task.wait(0.05)
+		if autoBuyActive then
+			for prompt in pairs(buyPrompts) do
+				if prompt.Parent and prompt.Enabled and isBuyPrompt(prompt) then
+					prompt.HoldDuration = 0
+					for _ = 1, 5 do
+						if not autoBuyActive or not prompt.Parent or not prompt.Enabled then
+							break
+						end
+						prompt:InputHoldBegin()
+						prompt:InputHoldEnd()
+					end
+				end
+			end
+		end
+	end
+end)
+
+local function applyAnchored(state)
+	anchoredActive = state == true
+	local char = player.Character
+	if char then
+		for _, part in pairs(char:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.Anchored = anchoredActive
+			end
+		end
+	end
+end
+
+player.CharacterAdded:Connect(function(char)
+	if anchoredActive then
+		task.defer(function()
+			for _, part in pairs(char:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.Anchored = true
+				end
+			end
+		end)
+	end
+end)
+
+-- ──────────────────────────────────────────────────
+-- Interfaz
+-- ──────────────────────────────────────────────────
+local TITLE_H, TABBAR_H, ROW_H, ROW_GAP, PAGE_PAD = 38, 38, 42, 8, 10
+local PAGE1_H = (ROW_H * 6 + ROW_GAP * 5) + PAGE_PAD * 2
+local PAGE2_H = (ROW_H * 3 + ROW_GAP * 3 + 30) + PAGE_PAD * 2
+local PAGE3_H = 140 + PAGE_PAD * 2
+local FULL_H_MAIN = TITLE_H + TABBAR_H + PAGE1_H
+local FULL_H_HELP = TITLE_H + TABBAR_H + PAGE2_H
+local FULL_H_LOG = TITLE_H + TABBAR_H + PAGE3_H
+local MIN_H = TITLE_H
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 330, 0, MIN_H)
+mainFrame.AnchorPoint = Vector2.new(0, 0)
+-- Al ejecutar el script, SIEMPRE empieza minimizado y centrado.
+-- El AnchorPoint superior-izquierdo hace que al abrir/minimizar conserve exactamente su lugar.
+mainFrame.Position = UDim2.new(0.5, -165, 0.5, -(MIN_H / 2))
+mainFrame.BackgroundColor3 = C.bg1
+mainFrame.BackgroundTransparency = 0.05
+mainFrame.Active = true
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = vonGui
+corner(mainFrame, UDim.new(0, 10))
+stroke(mainFrame, C.border, 1.5)
+
+-- Esquina de redimensionado: arrastrar abajo/derecha expande el menú.
+-- Arrastrar arriba/izquierda reduce su tamaño. No modifica la posición del menú.
+local resizeHandle = Instance.new("TextButton")
+resizeHandle.Name = "ResizeHandle"
+resizeHandle.Size = UDim2.new(0, 24, 0, 24)
+resizeHandle.AnchorPoint = Vector2.new(1, 1)
+resizeHandle.Position = UDim2.new(1, -3, 1, -3)
+resizeHandle.BackgroundTransparency = 1
+resizeHandle.Text = ""
+resizeHandle.AutoButtonColor = false
+resizeHandle.ZIndex = 50
+resizeHandle.Parent = mainFrame
+
+local resizeGrip = Instance.new("Frame")
+resizeGrip.Size = UDim2.new(0, 14, 0, 14)
+resizeGrip.AnchorPoint = Vector2.new(1, 1)
+resizeGrip.Position = UDim2.new(1, -2, 1, -2)
+resizeGrip.BackgroundColor3 = C.accent
+resizeGrip.BackgroundTransparency = 0.15
+resizeGrip.BorderSizePixel = 0
+resizeGrip.ZIndex = 51
+resizeGrip.Parent = resizeHandle
+corner(resizeGrip, UDim.new(0, 4))
+
+local resizeLine = Instance.new("Frame")
+resizeLine.Size = UDim2.new(0, 8, 0, 2)
+resizeLine.AnchorPoint = Vector2.new(1, 0.5)
+resizeLine.Position = UDim2.new(1, -3, 0.5, 0)
+resizeLine.Rotation = 45
+resizeLine.BackgroundColor3 = C.accentSec
+resizeLine.BackgroundTransparency = 0.2
+resizeLine.BorderSizePixel = 0
+resizeLine.ZIndex = 52
+resizeLine.Parent = resizeGrip
+
+local resizeLine2 = resizeLine:Clone()
+resizeLine2.Position = UDim2.new(1, -6, 0.5, -3)
+resizeLine2.Parent = resizeGrip
+
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, TITLE_H)
+titleBar.BackgroundColor3 = C.bg0
+titleBar.BorderSizePixel = 0
+titleBar.Active = true
+titleBar.Parent = mainFrame
+corner(titleBar, UDim.new(0, 10))
+
+local titleContainer = Instance.new("Frame")
+titleContainer.Size = UDim2.new(1, -80, 1, 0)
+titleContainer.Position = UDim2.new(0, 12, 0, 0)
+titleContainer.BackgroundTransparency = 1
+titleContainer.Parent = titleBar
+
+local titleLayout = Instance.new("UIListLayout")
+titleLayout.FillDirection = Enum.FillDirection.Horizontal
+titleLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+titleLayout.Padding = UDim.new(0, 8)
+titleLayout.SortOrder = Enum.SortOrder.LayoutOrder
+titleLayout.Parent = titleContainer
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.AutomaticSize = Enum.AutomaticSize.X
+titleLabel.Size = UDim2.new(0, 0, 1, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Font = Enum.Font.GothamBlack
+titleLabel.TextSize = 16
+titleLabel.TextColor3 = C.accentSec
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Text = "L3vel Sniper"
+titleLabel.LayoutOrder = 1
+titleLabel.Parent = titleContainer
+
+statusDot = Instance.new("Frame")
+statusDot.Size = UDim2.new(0, 8, 0, 8)
+statusDot.BackgroundColor3 = C.statusRed
+statusDot.BorderSizePixel = 0
+statusDot.LayoutOrder = 2
+statusDot.Parent = titleContainer
+corner(statusDot, UDim.new(1, 0))
+
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.new(0, 26, 0, 20)
+minBtn.AnchorPoint = Vector2.new(1, 0.5)
+minBtn.Position = UDim2.new(1, -8, 0.5, 0)
+minBtn.BackgroundColor3 = C.bg2
+minBtn.BorderSizePixel = 0
+minBtn.Font = Enum.Font.Gotham
+minBtn.TextSize = 14
+minBtn.TextColor3 = C.accentSec
+minBtn.Text = "-"
+minBtn.Parent = titleBar
+corner(minBtn, UDim.new(0, 5))
+stroke(minBtn, C.border, 1)
+addPressEffect(minBtn, minBtn, C.bg2)
+
+local lockBtn = Instance.new("TextButton")
+lockBtn.Size = UDim2.new(0, 26, 0, 20)
+lockBtn.AnchorPoint = Vector2.new(1, 0.5)
+lockBtn.Position = UDim2.new(1, -38, 0.5, 0)
+lockBtn.BackgroundColor3 = C.bg2
+lockBtn.BorderSizePixel = 0
+lockBtn.Font = Enum.Font.Gotham
+lockBtn.TextSize = 12
+lockBtn.Text = "🔒"
+lockBtn.Parent = titleBar
+corner(lockBtn, UDim.new(0, 5))
+stroke(lockBtn, C.border, 1)
+addPressEffect(lockBtn, lockBtn, C.bg2)
+
+local tabBar = Instance.new("Frame")
+tabBar.Position = UDim2.new(0, 0, 0, TITLE_H)
+tabBar.Size = UDim2.new(1, 0, 0, TABBAR_H)
+tabBar.BackgroundTransparency = 1
+tabBar.Parent = mainFrame
+
+local tabLayout = Instance.new("UIListLayout")
+tabLayout.FillDirection = Enum.FillDirection.Horizontal
+tabLayout.Padding = UDim.new(0, 8)
+tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+tabLayout.Parent = tabBar
+
+local function makeTabButton(text, order)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0.45, -4, 0, 26)
+	btn.LayoutOrder = order
+	btn.BackgroundColor3 = C.bg2
+	btn.BorderSizePixel = 0
+	btn.Font = Enum.Font.Gotham
+	btn.TextSize = 12
+	btn.TextColor3 = C.textMuted
+	btn.Text = text
+	btn.Parent = tabBar
+	corner(btn, UDim.new(0, 6))
+	stroke(btn, C.border, 1)
+	return btn
+end
+
+local tabMainBtn = makeTabButton("Main", 1)
+local tabHelpBtn = makeTabButton("Help", 2)
+local tabLogBtn = makeTabButton("Logs", 3)
+
+-- Three tabs need slightly narrower buttons so they remain side-by-side.
+tabMainBtn.Size = UDim2.new(0.31, -6, 0, 26)
+tabHelpBtn.Size = UDim2.new(0.31, -6, 0, 26)
+tabLogBtn.Size = UDim2.new(0.31, -6, 0, 26)
+
+local contentFrame = Instance.new("Frame")
+contentFrame.Position = UDim2.new(0, 0, 0, TITLE_H + TABBAR_H)
+contentFrame.Size = UDim2.new(1, 0, 1, -(TITLE_H + TABBAR_H))
+contentFrame.BackgroundTransparency = 1
+contentFrame.ClipsDescendants = true
+contentFrame.Parent = mainFrame
+
+local page1 = Instance.new("Frame")
+page1.Size = UDim2.new(1, 0, 1, 0)
+page1.BackgroundTransparency = 1
+page1.Parent = contentFrame
+
+local page1Layout = Instance.new("UIListLayout")
+page1Layout.Padding = UDim.new(0, ROW_GAP)
+page1Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+page1Layout.SortOrder = Enum.SortOrder.LayoutOrder
+page1Layout.Parent = page1
+
+local page1Padding = Instance.new("UIPadding")
+page1Padding.PaddingLeft = UDim.new(0, 10)
+page1Padding.PaddingRight = UDim.new(0, 10)
+page1Padding.PaddingTop = UDim.new(0, 10)
+page1Padding.PaddingBottom = UDim.new(0, 10)
+page1Padding.Parent = page1
+
+-- ──────────────────────────────────────────────────
+-- Ayuda
+-- ──────────────────────────────────────────────────
+local page2 = Instance.new("Frame")
+page2.Size = UDim2.new(1, 0, 1, 0)
+page2.BackgroundTransparency = 1
+page2.Visible = false
+page2.Parent = contentFrame
+
+local page2Layout = Instance.new("UIListLayout")
+page2Layout.Padding = UDim.new(0, ROW_GAP)
+page2Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+page2Layout.SortOrder = Enum.SortOrder.LayoutOrder
+page2Layout.Parent = page2
+
+local page2Padding = Instance.new("UIPadding")
+page2Padding.PaddingLeft = UDim.new(0, 10)
+page2Padding.PaddingRight = UDim.new(0, 10)
+page2Padding.PaddingTop = UDim.new(0, 10)
+page2Padding.PaddingBottom = UDim.new(0, 10)
+page2Padding.Parent = page2
+
+local function createHelpRow(text, order)
+	local row = Instance.new("Frame")
+	row.Size = UDim2.new(1, 0, 0, ROW_H)
+	row.BackgroundColor3 = C.bg2
+	row.LayoutOrder = order
+	row.Parent = page2
+	corner(row, UDim.new(0, 7))
+	stroke(row, C.border, 1)
+
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(1, 0, 1, 0)
+	btn.BackgroundTransparency = 1
+	btn.Font = Enum.Font.Gotham
+	btn.TextSize = 13
+	btn.TextColor3 = C.textPri
+	btn.Text = text
+	btn.Parent = row
+	addPressEffect(btn, row, C.bg2)
+
+	return row, btn
+end
+
+local autoBuyRow, helpAutoBuyBtn = createHelpRow("Auto Buy [OFF]", 1)
+local anchoredRow, helpAnchoredBtn = createHelpRow("Anchored [OFF]", 2)
+local keyHelperRow, keyHelperBtn = createHelpRow("Key Helper [OFF]", 3)
+
+local pcKeyHint = Instance.new("TextLabel")
+pcKeyHint.Size = UDim2.new(1, 0, 0, 30)
+pcKeyHint.LayoutOrder = 4
+pcKeyHint.BackgroundTransparency = 1
+pcKeyHint.Font = Enum.Font.GothamBold
+pcKeyHint.TextSize = 10
+pcKeyHint.TextColor3 = Color3.fromRGB(255, 255, 255)
+pcKeyHint.TextWrapped = true
+pcKeyHint.TextXAlignment = Enum.TextXAlignment.Center
+pcKeyHint.TextYAlignment = Enum.TextYAlignment.Center
+pcKeyHint.Text = "Press Q for Auto Buy and press E for Anchored"
+pcKeyHint.Parent = page2
+
+local function toggleText(name, state)
+	local suffix = state and '<font color="#33DD66">[ON]</font>' or '<font color="#FF4444">[OFF]</font>'
+	return name .. " " .. suffix
+end
+
+-- Floating keybinds: two separate dark square buttons, side-by-side on the right.
+local keybindGui = Instance.new("ScreenGui")
+keybindGui.Name = "L3velHelpKeybinds"
+keybindGui.ResetOnSpawn = false
+keybindGui.IgnoreGuiInset = true
+keybindGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+keybindGui.DisplayOrder = 50
+keybindGui.Parent = PlayerGui
+
+local function makeKeybind(text, xOffset)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0, 66, 0, 42)
+	btn.AnchorPoint = Vector2.new(1, 0)
+	btn.Position = UDim2.new(1, xOffset, 0, 80)
+	btn.BackgroundColor3 = C.bg2
+	btn.BorderSizePixel = 0
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 12
+	btn.TextColor3 = C.textPri
+	btn.Text = text
+	btn.Visible = false
+	btn.AutoButtonColor = false
+	btn.Parent = keybindGui
+	corner(btn, UDim.new(0, 8))
+	stroke(btn, C.border, 1)
+
+	-- Each floating keybind can be dragged independently.
+	local draggingKeybind = false
+	local dragStartKeybind = Vector3.zero
+	local startPosKeybind = btn.Position
+	local activeKeybindInput = nil
+
+	btn.InputBegan:Connect(function(input)
+		if isLocked then return end
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			draggingKeybind = true
+			dragStartKeybind = input.Position
+			startPosKeybind = btn.Position
+			activeKeybindInput = input
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					draggingKeybind = false
+					activeKeybindInput = nil
+				end
+			end)
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if not draggingKeybind or isLocked then return end
+		if input == activeKeybindInput
+			or input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch then
+			local delta = input.Position - dragStartKeybind
+			btn.Position = UDim2.new(
+				startPosKeybind.X.Scale,
+				startPosKeybind.X.Offset + delta.X,
+				startPosKeybind.Y.Scale,
+				startPosKeybind.Y.Offset + delta.Y
+			)
+		end
+	end)
+
+	return btn
+end
+
+-- Right side, separated from each other.
+local buyKeybindBtn = makeKeybind("Buy", -76)
+local anchoredKeybindBtn = makeKeybind("Anchored", -4)
+
+local function updateKeybindPanel()
+	buyKeybindBtn.Visible = keyHelperEnabled
+	anchoredKeybindBtn.Visible = keyHelperEnabled
+end
+
+local function updateHelpAutoBuyVisual()
+	helpAutoBuyBtn.RichText = true
+	helpAutoBuyBtn.Text = toggleText("Auto Buy", autoBuyActive)
+	helpAutoBuyBtn.TextColor3 = C.textPri
+	autoBuyRow.BackgroundColor3 = C.bg2
+end
+
+local function updateHelpAnchoredVisual()
+	helpAnchoredBtn.RichText = true
+	helpAnchoredBtn.Text = toggleText("Anchored", anchoredActive)
+	helpAnchoredBtn.TextColor3 = C.textPri
+	anchoredRow.BackgroundColor3 = C.bg2
+end
+
+local function setHelpAutoBuy(state)
+	autoBuyActive = state == true
+	updateHelpAutoBuyVisual()
+end
+
+local function setHelpAnchored(state)
+	applyAnchored(state)
+	updateHelpAnchoredVisual()
+end
+
+local function setKeyHelper(state)
+	keyHelperEnabled = state == true
+	keyHelperBtn.RichText = true
+	keyHelperBtn.Text = toggleText("Key Helper", keyHelperEnabled)
+	keyHelperBtn.TextColor3 = C.textPri
+	keyHelperRow.BackgroundColor3 = C.bg2
+	updateKeybindPanel()
+end
+
+helpAutoBuyBtn.MouseButton1Click:Connect(function()
+	setHelpAutoBuy(not autoBuyActive)
+	updateKeybindVisual(buyKeybindBtn, autoBuyActive)
+end)
+
+helpAnchoredBtn.MouseButton1Click:Connect(function()
+	setHelpAnchored(not anchoredActive)
+	updateKeybindVisual(anchoredKeybindBtn, anchoredActive)
+end)
+
+keyHelperBtn.MouseButton1Click:Connect(function()
+	setKeyHelper(not keyHelperEnabled)
+end)
+
+local function updateKeybindVisual(btn, active)
+	btn.BackgroundColor3 = active and Color3.fromRGB(35, 150, 75) or Color3.fromRGB(170, 45, 45)
+end
+
+buyKeybindBtn.MouseButton1Click:Connect(function()
+	setHelpAutoBuy(not autoBuyActive)
+	updateKeybindVisual(buyKeybindBtn, autoBuyActive)
+end)
+
+anchoredKeybindBtn.MouseButton1Click:Connect(function()
+	setHelpAnchored(not anchoredActive)
+	updateKeybindVisual(anchoredKeybindBtn, anchoredActive)
+end)
+
+-- Atajos de teclado en PC cuando Key Helper está desactivado.
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed or keyHelperEnabled then return end
+	if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+
+	if input.KeyCode == Enum.KeyCode.Q then
+		setHelpAutoBuy(not autoBuyActive)
+		updateKeybindVisual(buyKeybindBtn, autoBuyActive)
+	elseif input.KeyCode == Enum.KeyCode.E then
+		setHelpAnchored(not anchoredActive)
+		updateKeybindVisual(anchoredKeybindBtn, anchoredActive)
+	end
+end)
+
+updateHelpAutoBuyVisual()
+updateHelpAnchoredVisual()
+setKeyHelper(false)
+updateKeybindVisual(buyKeybindBtn, autoBuyActive)
+updateKeybindVisual(anchoredKeybindBtn, anchoredActive)
+
+-- ──────────────────────────────────────────────────
+-- Logs
+-- ──────────────────────────────────────────────────
+local page3 = Instance.new("Frame")
+page3.Size = UDim2.new(1, 0, 1, 0)
+page3.BackgroundTransparency = 1
+page3.Visible = false
+page3.Parent = contentFrame
+
+local page3Padding = Instance.new("UIPadding")
+page3Padding.PaddingLeft = UDim.new(0, 10)
+page3Padding.PaddingRight = UDim.new(0, 10)
+page3Padding.PaddingTop = UDim.new(0, 10)
+page3Padding.PaddingBottom = UDim.new(0, 10)
+page3Padding.Parent = page3
+
+local statusScroll = Instance.new("ScrollingFrame")
+statusScroll.Size = UDim2.new(1, 0, 1, -30)
+statusScroll.BackgroundColor3 = C.bg3
+statusScroll.BackgroundTransparency = 0.2
+statusScroll.BorderSizePixel = 0
+statusScroll.ScrollBarThickness = 3
+statusScroll.ScrollBarImageColor3 = C.accent
+statusScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+statusScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+statusScroll.Parent = page3
+corner(statusScroll, UDim.new(0, 5))
+stroke(statusScroll, C.border, 1)
+
+local statusScrollLayout = Instance.new("UIListLayout")
+statusScrollLayout.Padding = UDim.new(0, 2)
+statusScrollLayout.Parent = statusScroll
+
+local statusScrollPad = Instance.new("UIPadding")
+statusScrollPad.PaddingLeft = UDim.new(0, 4)
+statusScrollPad.PaddingTop = UDim.new(0, 4)
+statusScrollPad.Parent = statusScroll
+statusScrollRef = statusScroll
+
+local clearLogBtn = Instance.new("TextButton")
+clearLogBtn.Size = UDim2.new(1, 0, 0, 24)
+clearLogBtn.Position = UDim2.new(0, 0, 1, -24)
+clearLogBtn.BackgroundColor3 = C.bg2
+clearLogBtn.Font = Enum.Font.Gotham
+clearLogBtn.TextSize = 11
+clearLogBtn.TextColor3 = C.textMuted
+clearLogBtn.Text = "Clear Log"
+clearLogBtn.Parent = page3
+corner(clearLogBtn, UDim.new(0, 5))
+stroke(clearLogBtn, C.border, 1)
+addPressEffect(clearLogBtn, clearLogBtn, C.bg2)
+
+clearLogBtn.MouseButton1Click:Connect(function()
+	clearLogUI()
+
+	-- Clear Log también limpia cualquier código/fragmento pendiente
+	-- que haya quedado escrito en el panel real de Codes.
+	pendingCodePrefix = false
+	pendingCodePrefixTime = 0
+	pendingSpokenCodePrefix = false
+	pendingSpokenCodePrefixTime = 0
+	collectBuf = {}
+	collectProgress = 0
+	lastCollectedText = ""
+	lastDetectedCodeFragment = ""
+	activeDynamicLabel = nil
+
+	pcall(function()
+		local CodesRoot = PlayerGui:FindFirstChild("Codes")
+		local Codes = CodesRoot and CodesRoot:FindFirstChild("Codes")
+		local codeRedeem = Codes and Codes:FindFirstChild("CodeRedeem")
+		local textBox = codeRedeem and codeRedeem:FindFirstChild("TextBox")
+		if textBox and textBox:IsA("TextBox") then
+			textBox.Text = ""
+		end
+	end)
+end)
+
+-- FILA 1: Start Button
+local startRow = Instance.new("Frame")
+startRow.Size = UDim2.new(1, 0, 0, ROW_H)
+startRow.BackgroundColor3 = C.bg2
+startRow.LayoutOrder = 1
+startRow.Parent = page1
+corner(startRow, UDim.new(0, 9))
+stroke(startRow, C.border, 1.2)
+
+startBtn = Instance.new("TextButton")
+startBtn.Size = UDim2.new(1, 0, 1, 0)
+startBtn.BackgroundTransparency = 1
+startBtn.Font = Enum.Font.Gotham
+startBtn.TextSize = 13
+startBtn.RichText = true
+startBtn.TextColor3 = C.textPri
+startBtn.Text = coloredToggleText("Start", false)
+startBtn.Parent = startRow
+addPressEffect(startBtn, startRow, C.bg2)
+
+startBtn.MouseButton1Click:Connect(function()
+	isScanning = not isScanning
+	if isScanning then
+		startBtn.Text = coloredToggleText("Start", true)
+		statusDot.BackgroundColor3 = C.statusGreen
+		collectBuf = {}
+		collectProgress = 0
+		lastCollectedText = ""
+		lastDetectedCodeFragment = ""
+
+		-- Un nuevo ciclo de Start siempre empieza con un log limpio.
+		clearLogUI()
+
+		-- Cada nuevo ciclo de Start comienza limpio: si había un riddle
+		-- acumulado antes de apagar/encender Start, no se arrastra al
+		-- siguiente code o riddle.
+		riddleQueue = {}
+		riddleQueued = {}
+		riddleRecent = {}
+		riddleAnswered = {}
+		riddleAccumulatedAnswer = ""
+		riddleSolving = false
+		-- Sin log al activar Start
+	else
+		startBtn.Text = coloredToggleText("Start", false)
+		statusDot.BackgroundColor3 = C.statusRed
+		collectBuf = {}
+		collectProgress = 0
+		lastCollectedText = ""
+		lastDetectedCodeFragment = ""
+		-- Sin log al desactivar Start
+	end
+end)
+
+-- FILA 2: Auto Start
+local autoStartRow = Instance.new("Frame")
+autoStartRow.Size = UDim2.new(1, 0, 0, ROW_H)
+autoStartRow.BackgroundColor3 = C.bg2
+autoStartRow.LayoutOrder = 2
+autoStartRow.Parent = page1
+corner(autoStartRow, UDim.new(0, 9))
+stroke(autoStartRow, C.border, 1.2)
+
+autoStartBtn = Instance.new("TextButton")
+autoStartBtn.Size = UDim2.new(1, 0, 1, 0)
+autoStartBtn.BackgroundTransparency = 1
+autoStartBtn.Font = Enum.Font.Gotham
+autoStartBtn.TextSize = 13
+autoStartBtn.RichText = true
+autoStartBtn.TextColor3 = C.textPri
+autoStartBtn.Text = coloredToggleText("Auto Start", false)
+autoStartBtn.Parent = autoStartRow
+addPressEffect(autoStartBtn, autoStartRow, C.bg2)
+
+autoStartBtn.MouseButton1Click:Connect(function()
+	autoStartEnabled = not autoStartEnabled
+	autoStartBtn.Text = coloredToggleText("Auto Start", autoStartEnabled)
+end)
+
+-- FILA 3: Spam & Reedem
+local combineRow = Instance.new("Frame")
+combineRow.Size = UDim2.new(1, 0, 0, ROW_H)
+combineRow.BackgroundColor3 = C.bg2
+combineRow.LayoutOrder = 3
+combineRow.Parent = page1
+corner(combineRow, UDim.new(0, 9))
+stroke(combineRow, C.border, 1.2)
+
+-- Un solo texto centrado para evitar cualquier texto flotando o separado.
+-- La lógica del botón se mantiene exactamente igual.
+local combineBtn = Instance.new("TextButton")
+combineBtn.Size = UDim2.new(1, 0, 1, 0)
+combineBtn.BackgroundTransparency = 1
+combineBtn.Font = Enum.Font.Gotham
+combineBtn.TextSize = 13
+combineBtn.RichText = true
+combineBtn.TextColor3 = C.textPri
+combineBtn.TextXAlignment = Enum.TextXAlignment.Center
+combineBtn.TextYAlignment = Enum.TextYAlignment.Center
+combineBtn.Text = coloredToggleText("Spam  &  Reedem", false)
+combineBtn.Parent = combineRow
+addPressEffect(combineBtn, combineRow, C.bg2)
+
+combineBtn.MouseButton1Click:Connect(function()
+	combineEnabled = not combineEnabled
+	combineBtn.Text = coloredToggleText("Spam  &  Reedem", combineEnabled)
+end)
+
+-- FILA 3: Auto Riddle
+local autoRiddleRow = Instance.new("Frame")
+autoRiddleRow.Size = UDim2.new(1, 0, 0, ROW_H)
+autoRiddleRow.BackgroundColor3 = C.bg2
+autoRiddleRow.LayoutOrder = 4
+autoRiddleRow.Parent = page1
+corner(autoRiddleRow, UDim.new(0, 9))
+stroke(autoRiddleRow, C.border, 1.2)
+
+local autoRiddleBtn = Instance.new("TextButton")
+autoRiddleBtn.Size = UDim2.new(1, 0, 1, 0)
+autoRiddleBtn.BackgroundTransparency = 1
+autoRiddleBtn.Font = Enum.Font.Gotham
+autoRiddleBtn.TextSize = 13
+autoRiddleBtn.RichText = true
+autoRiddleBtn.TextColor3 = C.textPri
+autoRiddleBtn.Text = coloredToggleText("Auto riddle", false)
+autoRiddleBtn.Parent = autoRiddleRow
+addPressEffect(autoRiddleBtn, autoRiddleRow, C.bg2)
+
+autoRiddleBtn.MouseButton1Click:Connect(function()
+	autoRiddleEnabled = not autoRiddleEnabled
+	if autoRiddleEnabled then
+		autoRiddleBtn.Text = coloredToggleText("Auto riddle", true)
+	else
+		autoRiddleBtn.Text = coloredToggleText("Auto riddle", false)
+	end
+	setAutoRiddleEnabled(autoRiddleEnabled, false)
+end)
+
+-- FILA 4: Capture Settings
+local captureRow = Instance.new("Frame")
+captureRow.Size = UDim2.new(1, 0, 0, ROW_H)
+captureRow.BackgroundColor3 = C.bg2
+captureRow.LayoutOrder = 5
+captureRow.Parent = page1
+corner(captureRow, UDim.new(0, 9))
+stroke(captureRow, C.border, 1.2)
+
+local captureLabel = Instance.new("TextLabel")
+captureLabel.Size = UDim2.new(1, -60, 1, 0)
+captureLabel.Position = UDim2.new(0, 12, 0, 0)
+captureLabel.BackgroundTransparency = 1
+captureLabel.Font = Enum.Font.Gotham
+captureLabel.TextSize = 12
+captureLabel.TextColor3 = C.textPri
+captureLabel.TextXAlignment = Enum.TextXAlignment.Left
+captureLabel.Text = "Submit Code After"
+captureLabel.Parent = captureRow
+
+local captureBox = Instance.new("TextBox")
+captureBox.AnchorPoint = Vector2.new(1, 0.5)
+captureBox.Position = UDim2.new(1, -10, 0.5, 0)
+captureBox.Size = UDim2.new(0, 40, 0, 20)
+captureBox.BackgroundColor3 = C.inputBg
+captureBox.Font = Enum.Font.GothamBold
+captureBox.TextSize = 12
+captureBox.TextColor3 = C.accentSec
+captureBox.Text = tostring(captureCount)
+captureBox.Parent = captureRow
+corner(captureBox, UDim.new(0, 5))
+stroke(captureBox, C.border, 1)
+
+captureBox.FocusLost:Connect(function()
+	local n = tonumber(captureBox.Text:match("%d+")) or 1
+	captureCount = n
+	cfg.captureCount = n
+	captureBox.Text = tostring(n)
+	saveConfig()
+end)
+
+-- FILA 5: Discord Row
+local discordRow = Instance.new("Frame")
+discordRow.Size = UDim2.new(1, 0, 0, ROW_H)
+discordRow.BackgroundColor3 = C.bg2
+discordRow.LayoutOrder = 6
+discordRow.Parent = page1
+corner(discordRow, UDim.new(0, 7))
+stroke(discordRow, C.border, 1)
+
+local discordBtn = Instance.new("TextButton")
+discordBtn.Size = UDim2.new(1, 0, 1, 0)
+discordBtn.BackgroundTransparency = 1
+discordBtn.Font = Enum.Font.Gotham
+discordBtn.TextSize = 13
+discordBtn.TextColor3 = C.textPri
+discordBtn.Text = "Copy Discord"
+discordBtn.Parent = discordRow
+addPressEffect(discordBtn, discordRow, C.bg2)
+
+discordBtn.MouseButton1Click:Connect(function()
+	if setclipboard then
+		setclipboard("https://discord.gg/MAGvt2eEHe")
+		-- Sin log al copiar Discord
+	end
+end)
+
+local isMinimized = true
+local currentTab = 1
+
+-- Estado del redimensionado.
+-- El ancho es único y se conserva al cambiar de apartado.
+-- La altura se guarda por apartado para que Main/Help/Logs puedan
+-- ajustar su tamaño automáticamente sin perder el ancho elegido.
+local resizeWidth = 310
+local resizeHeights = {
+	[1] = FULL_H_MAIN,
+	[2] = FULL_H_HELP,
+	[3] = FULL_H_LOG,
+}
+local hasCustomResize = false
+local resizing = false
+local resizeStart = Vector3.zero
+local resizeStartWidth = resizeWidth
+local resizeStartHeight = resizeHeights[currentTab]
+
+local function currentTabHeight()
+	if currentTab == 1 then return FULL_H_MAIN end
+	if currentTab == 2 then return FULL_H_HELP end
+	return FULL_H_LOG
+end
+
+local function currentResizeHeight()
+	return resizeHeights[currentTab] or currentTabHeight()
+end
+
+-- Las filas se ajustan al alto real disponible. Así, al encoger desde
+-- la esquina, los botones encogen con el menú y siguen dentro de él.
+local mainRows = {startRow, autoStartRow, combineRow, autoRiddleRow, captureRow, discordRow}
+local helpRows = {autoBuyRow, anchoredRow, keyHelperRow}
+
+local function updatePageRows()
+	if not hasCustomResize then return end
+
+	local totalH = currentResizeHeight()
+	local contentHeight = math.max(0, totalH - TITLE_H - TABBAR_H)
+	local innerHeight = math.max(0, contentHeight - PAGE_PAD * 2)
+
+	-- Main: 6 filas siempre visibles, repartiendo el espacio disponible.
+	local mainRowH = math.max(1, math.floor((innerHeight - ROW_GAP * 5) / 6))
+	for _, row in ipairs(mainRows) do
+		row.Size = UDim2.new(1, 0, 0, mainRowH)
+	end
+
+	-- Help: 3 botones + el espacio reservado por Key Helper.
+	local helpRowH = math.max(1, math.floor((innerHeight - ROW_GAP * 2 - 30) / 3))
+	for _, row in ipairs(helpRows) do
+		row.Size = UDim2.new(1, 0, 0, helpRowH)
+	end
+end
+
+local function minimumHeightForTab(tab)
+	if tab == 1 then
+		-- Altura mínima que permite mostrar las 5 filas completas dentro del menú.
+		return TITLE_H + TABBAR_H + PAGE_PAD * 2 + ROW_GAP * 5 + (20 * 6)
+	elseif tab == 2 then
+		return TITLE_H + TABBAR_H + PAGE_PAD * 2 + ROW_GAP * 2 + (20 * 3) + 30
+	end
+	-- Logs no tiene la lista de botones de Main/Help; conserva una altura compacta.
+	return TITLE_H + TABBAR_H + 60
+end
+
+local function getLayoutSize()
+	if isMinimized then
+		return 310, MIN_H
+	end
+	if not hasCustomResize then
+		return resizeWidth, currentTabHeight()
+	end
+	return resizeWidth, currentResizeHeight()
+end
+
+local function applyLayout(instant)
+	local targetW, targetH = getLayoutSize()
+	updatePageRows()
+	contentFrame.Visible = not isMinimized
+	tabBar.Visible = not isMinimized
+	resizeHandle.Visible = not isMinimized
+	minBtn.Text = isMinimized and "+" or "-"
+	if instant then
+		mainFrame.Size = UDim2.new(0, targetW, 0, targetH)
+	else
+		TweenService:Create(mainFrame, C.tweenMed, { Size = UDim2.new(0, targetW, 0, targetH) }):Play()
+	end
+end
+
+local function setActiveTab(idx)
+	currentTab = idx
+	page1.Visible = (idx == 1)
+	page2.Visible = (idx == 2)
+	page3.Visible = (idx == 3)
+
+	tabMainBtn.BackgroundColor3 = idx == 1 and C.accent or C.bg2
+	tabHelpBtn.BackgroundColor3 = idx == 2 and C.accent or C.bg2
+	tabLogBtn.BackgroundColor3 = idx == 3 and C.accent or C.bg2
+
+	tabMainBtn.TextColor3 = idx == 1 and C.activeTabText or C.textMuted
+	tabHelpBtn.TextColor3 = idx == 2 and C.activeTabText or C.textMuted
+	tabLogBtn.TextColor3 = idx == 3 and C.activeTabText or C.textMuted
+
+	-- Al cambiar de apartado, el alto se adapta automáticamente al apartado.
+	-- El ancho NO cambia.
+	if hasCustomResize and not isMinimized then
+		local savedH = resizeHeights[idx]
+		if not savedH then
+			savedH = currentTabHeight()
+		end
+		local minH = minimumHeightForTab(idx)
+		resizeHeights[idx] = math.max(savedH, minH)
+		updatePageRows()
+	end
+end
+
+addPressEffect(tabMainBtn, tabMainBtn, function() return currentTab == 1 and C.accent or C.bg2 end)
+addPressEffect(tabHelpBtn, tabHelpBtn, function() return currentTab == 2 and C.accent or C.bg2 end)
+addPressEffect(tabLogBtn, tabLogBtn, function() return currentTab == 3 and C.accent or C.bg2 end)
+setActiveTab(currentTab)
+applyLayout(true)
+setAutoRiddleEnabled(false, true)
+
+tabMainBtn.MouseButton1Click:Connect(function()
+	if currentTab == 1 then return end
+	setActiveTab(1)
+	cfg.activeTab = 1
+	applyLayout(false)
+	saveConfig()
+end)
+
+tabHelpBtn.MouseButton1Click:Connect(function()
+	if currentTab == 2 then return end
+	setActiveTab(2)
+	cfg.activeTab = 2
+	applyLayout(false)
+	saveConfig()
+end)
+
+tabLogBtn.MouseButton1Click:Connect(function()
+	if currentTab == 3 then return end
+	setActiveTab(3)
+	cfg.activeTab = 3
+	applyLayout(false)
+	saveConfig()
+end)
+
+minBtn.MouseButton1Click:Connect(function()
+	local opening = isMinimized
+	isMinimized = not isMinimized
+	if opening then
+		setActiveTab(1)
+	end
+	cfg.minimized = isMinimized
+	applyLayout(false)
+	saveConfig()
+end)
+
+resizeHandle.InputBegan:Connect(function(input)
+	if isLocked or isMinimized then return end
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		resizing = true
+		resizeStart = input.Position
+		resizeStartWidth = resizeWidth
+		resizeStartHeight = currentResizeHeight()
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				resizing = false
+			end
+		end)
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if not resizing or isLocked or isMinimized then return end
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		local delta = input.Position - resizeStart
+
+		-- El ancho se mueve con X y la altura con Y, exactamente desde la esquina.
+		-- Hacia abajo/derecha = más grande; hacia arriba/izquierda = más pequeño.
+		local newWidth = math.clamp(resizeStartWidth + delta.X, 250, 600)
+		local minResizeHeight = minimumHeightForTab(currentTab)
+		local newHeight = math.clamp(resizeStartHeight + delta.Y, minResizeHeight, 560)
+
+		resizeWidth = newWidth
+		resizeHeights[currentTab] = newHeight
+		hasCustomResize = true
+
+		mainFrame.Size = UDim2.new(0, newWidth, 0, newHeight)
+		updatePageRows()
+	end
+end)
+
+lockBtn.MouseButton1Click:Connect(function()
+	isLocked = not isLocked
+	lockBtn.Text = isLocked and "🔒" or "🔓"
+	-- Sin log al bloquear/desbloquear
+end)
+
+-- ──────────────────────────────────────────────────
+-- Arrastre
+-- ──────────────────────────────────────────────────
+local dragging = false
+local dragStart = Vector3.zero
+local startPos = UDim2.new(0, 0, 0, 0)
+local activeInput = nil
+
+titleBar.InputBegan:Connect(function(input)
+	if isLocked then return end
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = mainFrame.Position
+		activeInput = input
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+				activeInput = nil
+				-- No guardar posición: la próxima ejecución siempre inicia centrada.
+			end
+		end)
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if not dragging or isLocked then return end
+	if input == activeInput or input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		local delta = input.Position - dragStart
+		mainFrame.Position = UDim2.new(
+			startPos.X.Scale,
+			startPos.X.Offset + delta.X,
+			startPos.Y.Scale,
+			startPos.Y.Offset + delta.Y
+		)
+	end
+end)
+
+print("L3vel Sniper cargado correctamente")
+-- Sin log de carga del menú; el Log queda reservado para códigos/Spawned.
